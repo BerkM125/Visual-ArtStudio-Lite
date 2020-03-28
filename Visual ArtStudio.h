@@ -19,5 +19,12 @@
 #define TRIANGLE 2
 #define CIRCLE 3
 #define LINE 4
-#define STICKER1 5
-#define WHOLESCREEN 6
+#define CALLIGRAPHYPEN 1
+#define PENCIL 2
+#define ERASER 3
+#define GRADIENTPEN 4
+#define MARKER 5
+#define BRUSH 6
+#define MAXOBJECTS 200
+#define WIDTH 1215
+#define HEIGHT 786

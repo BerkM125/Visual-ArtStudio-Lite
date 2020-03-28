@@ -4,9 +4,14 @@
 #include <stdio.h>
 #include "Visual ArtStudio.h"
 #include "resource.h"
-#define MAXOBJECTS 100
+#include <gdiplus.h>
+using namespace Gdiplus;
+#pragma comment (lib,"Gdiplus.lib")
 #define FILESTRINGBUFFER 1024
+extern LineCap lineCap;
 extern HDC mdc;
+extern HDC hdc;
+extern int utensilType;
 extern int winsizew;
 extern int winsizeh;
 extern HBRUSH penBrush;
@@ -32,9 +37,18 @@ int shapedrawstate = 0;
 int drawstate = 0;
 int lbuttonstate = 0;
 int eraserState2 = 0;
+int gradientPenState = 0;
+int texturePenState = 0;
+int objectIndex = 0;
+int selectState = 1;
+int selectTransformState = 0;
+wchar_t currentBrushTexture[64];
+Color gradientColor1(255, 255, 0, 0);
+Color gradientColor2(255, 0, 0, 255);
 HPEN clearPen;
 HPEN dashPen;
 HBRUSH clearBrush;
+RECT focusRect;
 LPPOINT mainpoint;
 unsigned long tmpregion[1280*786];
 void initClearPen(void) {
@@ -71,22 +85,110 @@ class triangleStruct {
 		void drawTriangle(void);
 };
 void triangleStruct::drawTriangle(void) {
-	POINT vertices[3];
-	vertices[0].x = vertex1.x;
-	vertices[0].y = vertex1.y;
-	vertices[1].x = vertex2.x;
-	vertices[1].y = vertex2.y;
-	vertices[2].x = vertex3.x;
-	vertices[2].y = vertex3.y;
-	Polygon(hdc, vertices, 3);
+	Point vertices[3];
+	Graphics graphics(hdc);
+	Image textureImg(currentBrushTexture);
+	SolidBrush solidBrush(Color(255, penColor & 0xff, (penColor & 0x00ff00) >> 8, penColor >> 16));
+	Pen solidPen(&solidBrush);
+	solidPen.SetLineJoin((LineJoin)lineCap);
+	solidPen.SetWidth(thickness2);
+	graphics.SetSmoothingMode(SmoothingModeAntiAlias);
+	vertices[0].X = vertex1.x;
+	vertices[0].Y = vertex1.y;
+	vertices[1].X = vertex2.x;
+	vertices[1].Y = vertex2.y;
+	vertices[2].X = vertex3.x;
+	vertices[2].Y = vertex3.y;
+	if (texturePenState == 1) {
+		TextureBrush tbrush(&textureImg, WrapModeTile);
+		Pen texturePen(&tbrush);
+		texturePen.SetStartCap(solidPen.GetStartCap());
+		texturePen.SetEndCap(solidPen.GetEndCap());
+		texturePen.SetWidth((REAL)thickness2);
+		graphics.DrawLine(&texturePen, vertices[0], vertices[1]);
+		graphics.DrawLine(&texturePen, vertices[1], vertices[2]);
+		graphics.DrawLine(&texturePen, vertices[2], vertices[0]);
+	}
+	else if (gradientPenState == 1) {
+		LinearGradientBrush linGrBrush(
+			Point(0, 10),
+			Point(200, 10),
+			gradientColor1,
+			gradientColor2);
+		Pen linGrPen(&linGrBrush);
+		linGrPen.SetStartCap(solidPen.GetStartCap());
+		linGrPen.SetEndCap(solidPen.GetEndCap());
+		linGrPen.SetWidth((REAL)thickness2);
+		graphics.DrawLine(&linGrPen, vertices[0], vertices[1]);
+		graphics.DrawLine(&linGrPen, vertices[1], vertices[2]);
+		graphics.DrawLine(&linGrPen, vertices[2], vertices[0]);
+	}
+	else {
+		graphics.DrawPolygon(&solidPen, vertices, 3);
+	}
 }
 void ellipseStruct::drawEllipse(void) {
-	Ellipse(hdc, left, top, right, bottom);
+	Graphics graphics(hdc);
+	Image textureImg(currentBrushTexture);
+	SolidBrush solidBrush(Color(255, penColor & 0xff, (penColor & 0x00ff00) >> 8, penColor >> 16));
+	Pen solidPen(&solidBrush);
+	solidPen.SetWidth(thickness2);
+	solidPen.SetLineJoin((LineJoin)lineCap);
+	graphics.SetSmoothingMode(SmoothingModeAntiAlias);
+	if (texturePenState == 1) {
+		TextureBrush tbrush(&textureImg, WrapModeTile);
+		Pen texturePen(&tbrush);
+		texturePen.SetWidth(thickness2);
+		graphics.DrawEllipse(&texturePen, left, top, (right - left), (bottom - top));
+	}
+	else if (gradientPenState == 1) {
+		LinearGradientBrush linGrBrush(
+			Point(0, 10),
+			Point(200, 10),
+			gradientColor1,
+			gradientColor2);
+		Pen linGrPen(&linGrBrush);
+		linGrPen.SetWidth(thickness2);
+		graphics.DrawEllipse(&linGrPen, left, top, (right - left), (bottom - top));
+	}
+	else
+		graphics.DrawEllipse(&solidPen, left, top, (right - left), (bottom - top));
 	return;
 }
 void lineStruct::drawLine(void) {
-	MoveToEx(hdc, vertex1.x, vertex1.y, NULL);
-	LineTo(hdc, vertex2.x, vertex2.y);
+	Graphics graphics(hdc);
+	Image textureImg(currentBrushTexture);
+	SolidBrush solidBrush(Color(255, penColor & 0xff, (penColor & 0x00ff00) >> 8, penColor >> 16));
+	Pen solidPen(&solidBrush);
+	solidPen.SetStartCap(lineCap);
+	solidPen.SetEndCap(lineCap);
+	solidPen.SetWidth(thickness2);
+	graphics.SetSmoothingMode(SmoothingModeAntiAlias);
+	Point point1(vertex1.x, vertex1.y);
+	Point point2(vertex2.x, vertex2.y);
+	if (texturePenState == 1) {
+		TextureBrush tbrush(&textureImg, WrapModeTile);
+		Pen texturePen(&tbrush);
+		texturePen.SetStartCap(solidPen.GetStartCap());
+		texturePen.SetEndCap(solidPen.GetEndCap());
+		texturePen.SetWidth(thickness2);
+		graphics.DrawLine(&texturePen, point1, point2);
+	}
+	else if (gradientPenState == 1) {
+		LinearGradientBrush linGrBrush(
+			Point(0, 10),
+			Point(200, 10),
+			gradientColor1,
+			gradientColor2);
+		Pen linGrPen(&linGrBrush);
+		linGrPen.SetStartCap(solidPen.GetStartCap());
+		linGrPen.SetEndCap(solidPen.GetEndCap());
+		linGrPen.SetWidth(thickness2);
+		graphics.DrawLine(&linGrPen, point1, point2);
+	}
+	else {
+		graphics.DrawLine(&solidPen, point1, point2);
+	}
 	return;
 }
 RECT prevregion;
@@ -96,11 +198,89 @@ triangleStruct triangle;
 triangleStruct prevtriangle;
 lineStruct line;
 lineStruct prevline;
-RECT allObjects[MAXOBJECTS];
-void mylmousemove(int x, int y, HDC hdc) {
+
+void drawRectGDI(RECT drawRect) {
+	Graphics graphics(mdc);
+	Image textureImg(currentBrushTexture);
+	SolidBrush solidBrush(Color(255, penColor & 0xff, (penColor & 0x00ff00) >> 8, penColor >> 16));
+	Pen solidPen(&solidBrush);
+	Rect rectRgn;
+	int x2, y2;
+	if (drawRect.left < drawRect.right) {
+		rectRgn.X = drawRect.left;
+		x2 = drawRect.right;
+	}
+	else {
+		rectRgn.X = drawRect.right;
+		x2 = drawRect.left; 
+	}
+	
+	if (drawRect.top < drawRect.bottom) {
+		rectRgn.Y = drawRect.top;
+		y2 = drawRect.bottom;
+	}
+	else {
+		rectRgn.Y = drawRect.bottom;
+		y2 = drawRect.top;
+	}
+	rectRgn.Width = (x2 - rectRgn.X);
+	rectRgn.Height = (y2 - rectRgn.Y);
+	solidPen.SetLineJoin((LineJoin)lineCap);
+	solidPen.SetWidth(thickness2);
+	graphics.SetSmoothingMode(SmoothingModeAntiAlias);
+	if (texturePenState == 1) {
+		TextureBrush tbrush(&textureImg, WrapModeTile);
+		Pen texturePen(&tbrush);
+		texturePen.SetLineJoin((LineJoin)lineCap);
+		texturePen.SetWidth(thickness2);
+		graphics.DrawRectangle(&texturePen, rectRgn);
+	}
+	else if (gradientPenState == 1) {
+		LinearGradientBrush linGrBrush(
+			Point(0, 10),
+			Point(200, 10),
+			gradientColor1,
+			gradientColor2);
+		Pen linGrPen(&linGrBrush);
+		linGrPen.SetLineJoin((LineJoin)lineCap);
+		linGrPen.SetWidth(thickness2);
+		graphics.DrawRectangle(&linGrPen, rectRgn);
+	}
+	else {
+		graphics.DrawRectangle(&solidPen, rectRgn);
+	}
+}
+void mylmousemove(int x, int y) {
 	RECT drawregion;
+	LPPOINT lp;
+	Point points[4];
+	char debugString[32];
+	static int debugIndex = 0;
+	wsprintfA(debugString, "\0");
+	Graphics graphics(mdc);
+	graphics.SetSmoothingMode(SmoothingModeAntiAlias);
+	LinearGradientBrush linGrBrush(
+		Point(0, 10),
+		Point(200, 10),
+		gradientColor1,
+		gradientColor2);
+	Pen linGrPen(&linGrBrush);
+	Image textureImg(currentBrushTexture);
+	TextureBrush tbrush(&textureImg, WrapModeTile);
+	Pen texturePen(&tbrush);
+	SolidBrush solidBrush(Color(255, penColor & 0xff, (penColor & 0x00ff00) >> 8, penColor >> 16));
+	Pen solidPen(&solidBrush);
+	solidPen.SetEndCap(lineCap);
+	solidPen.SetStartCap(lineCap);
+	texturePen.SetEndCap(lineCap);
+	linGrPen.SetEndCap(lineCap);
+	solidPen.SetWidth(thickness2);
+	texturePen.SetWidth(thickness2);
+	linGrPen.SetWidth(thickness2);
 	static int fx = 0;
 	static int fy = 0;
+	Point point1(fx, fy);
+	Point point2(x, y);
 	if (pencilState % 2 == 0) {
 		if (drawstate == 0) {
 			drawregion.left = x;
@@ -113,17 +293,46 @@ void mylmousemove(int x, int y, HDC hdc) {
 			drawregion.bottom = drawregion.top - thickness2;
 			drawstate += 1;
 		}
-		else {
-			if (drawstate == 1) {
-				setPenAndBrush(penColor);
-				SelectObject(hdc, penDCPen);
-				MoveToEx(hdc, fx, fy, NULL);
-				LineTo(hdc, x, y);
+		else if (drawstate == 1) {
+				
+				point1.X = fx;
+				point1.Y = fy;
+				point2.X = x;
+				point2.Y = y;
+				debugIndex += 1;
+				if (texturePenState == 1) {
+					graphics.DrawLine(&texturePen, point1, point2);
+				}
+				else if (gradientPenState == 1) {
+					graphics.DrawLine(&linGrPen, point1, point2);
+				}
+				else {
+					switch (utensilType) {
+					case CALLIGRAPHYPEN:
+						solidPen.SetWidth(thickness2 / 3);
+						graphics.DrawLine(&solidPen, fx, fy - 1 * thickness2/3, x, y - 1 * thickness2/3);
+						graphics.DrawLine(&solidPen, fx, fy - 2 * thickness2/3, x, y - 2 * thickness2/3);
+						graphics.DrawLine(&solidPen, fx, fy, x, y);
+						break;
+					case MARKER:
+						graphics.DrawLine(&solidPen, point1, point2);
+						break;
+					case ERASER:
+						SelectObject(mdc, GetStockObject(DC_PEN));
+						penDCPen = CreatePen(PS_SOLID, eraserThickness, (COLORREF)WHITE);
+						SelectObject(mdc, penDCPen);
+						MoveToEx(mdc, fx, fy, NULL);
+						LineTo(mdc, x, y);
+						fx = x;
+						fy = y;
+						break;
+					}
+					
+				}
+				pushvscr();
 				fx = x;
 				fy = y;
-				pushvscr();
 			}
-		}
 	}
 	else if (eraserState % 2 == 0) {
 		if (eraserState2 == 0) {
@@ -139,11 +348,11 @@ void mylmousemove(int x, int y, HDC hdc) {
 		}
 		else {
 			if (eraserState2 == 1) {
-				SelectObject(hdc, GetStockObject(DC_PEN));
+				SelectObject(mdc, GetStockObject(DC_PEN));
 				penDCPen = CreatePen(PS_SOLID, eraserThickness, (COLORREF)WHITE);
-				SelectObject(hdc, penDCPen);
-				MoveToEx(hdc, fx, fy, NULL);
-				LineTo(hdc, x, y);
+				SelectObject(mdc, penDCPen);
+				MoveToEx(mdc, fx, fy, NULL);
+				LineTo(mdc, x, y);
 				fx = x;
 				fy = y;
 				pushvscr();
@@ -153,6 +362,9 @@ void mylmousemove(int x, int y, HDC hdc) {
 	else if (dropperState % 2 == 0) {
 		penColor = GetPixel(mdc, x, y);
 		setPenAndBrush(penColor);
+	}
+	else {
+		return;
 	}
 }
 
@@ -186,7 +398,20 @@ void myrmousemove(int x, int y, HDC hdc) {
 	}
 }
 
+void mylbuttonup(int x, int y, HDC hdc) {
+}
+
 void mylbutton(int x, int y, HDC hdc) {
+
+	Graphics graphics(mdc);
+	Point points[4];
+	LinearGradientBrush linGrBrush(
+		Point(0, 10),
+		Point(200, 10),
+		gradientColor1,
+		gradientColor2);
+	Pen linGrPen(&linGrBrush);
+	linGrPen.SetWidth(thickness2);
 	static int fx = 0;
 	static int fy = 0;
 	if (objectType != NONE) {
@@ -214,7 +439,6 @@ void mylbutton(int x, int y, HDC hdc) {
 				ellipse.right = ellipse.left + 1;
 				ellipse.bottom = ellipse.top + 1;
 				SelectObject(hdc, penDCPen);
-				ellipse.drawEllipse();
 				shapedrawstate = 1;
 				break;
 			case TRIANGLE:
@@ -228,7 +452,6 @@ void mylbutton(int x, int y, HDC hdc) {
 				triangle.vertex3.x = triangle.vertex2.x;
 				triangle.vertex3.y = triangle.vertex2.y;
 				SelectObject(hdc, penDCPen);
-				triangle.drawTriangle();
 				shapedrawstate = 1;
 				break;
 			case LINE:
@@ -240,7 +463,6 @@ void mylbutton(int x, int y, HDC hdc) {
 				line.vertex2.x = line.vertex1.x;
 				line.vertex2.y = line.vertex1.y;
 				SelectObject(hdc, penDCPen);
-				line.drawLine();
 				shapedrawstate = 1;
 				break;
 			}
@@ -256,16 +478,6 @@ void mylbutton(int x, int y, HDC hdc) {
 					region.top = fy;
 					region.right = x;
 					region.bottom = y;
-					SelectObject(hdc, penDCPen);
-					MoveToEx(hdc, region.left, region.top, NULL);
-					LineTo(hdc, region.right, region.top);
-					MoveToEx(hdc, region.right, region.top, NULL);
-					LineTo(hdc, region.right, region.bottom);
-					MoveToEx(hdc, region.right, region.bottom, NULL);
-					LineTo(hdc, region.left, region.bottom);
-					MoveToEx(hdc, region.left, region.bottom, NULL);
-					LineTo(hdc, region.left, region.top);
-					MoveToEx(hdc, region.left, region.top, NULL);
 					shapedrawstate = 0;
 					break;
 				case CIRCLE:
@@ -275,7 +487,6 @@ void mylbutton(int x, int y, HDC hdc) {
 					ellipse.right = x;
 					ellipse.bottom = y;
 					SelectObject(hdc, penDCPen);
-					ellipse.drawEllipse();
 					shapedrawstate = 0;
 					break;
 
@@ -287,7 +498,6 @@ void mylbutton(int x, int y, HDC hdc) {
 					triangle.vertex3.x = x;
 					triangle.vertex3.y = y;
 					SelectObject(hdc, penDCPen);
-					triangle.drawTriangle();
 					shapedrawstate = 0;
 					break;
 				case LINE:
@@ -296,11 +506,11 @@ void mylbutton(int x, int y, HDC hdc) {
 					line.vertex2.x = x;
 					line.vertex2.y = y;
 					SelectObject(hdc, penDCPen);
-					line.drawLine();
 					shapedrawstate = 0;
 					break;
 				}
 				lbuttonstate = 0;
+				objectIndex += 1;
 			}
 		}
 		pushvscr();
@@ -323,76 +533,70 @@ void mylbutton(int x, int y, HDC hdc) {
 	}
 }
 void mymousemove(int x, int y, HDC hdc) {
-	if (shapedrawstate == 1) {
+		if (shapedrawstate == 1) {
 		for (int i = 0; i < winsizew; i++)
 			for (int i2 = 0; i2 < winsizeh; i2++)
-				vscrmemp[i + winsizew * i2] = tmpregion[i + winsizew * i2];		
+				vscrmemp[i + winsizew * i2] = tmpregion[i + winsizew * i2];
 		switch (objectType) {
-			case RECTANGLE:
-				prevregion.top = region.top;
-				prevregion.left = region.left;
-				prevregion.right = region.right;
-				prevregion.bottom = region.bottom;
-				SelectObject(hdc, clearBrush);
-				region.right = x;
-				region.bottom = y;
-				SelectObject(hdc, penDCPen);
-				MoveToEx(hdc, region.left, region.top, NULL);
-				LineTo(hdc, region.right, region.top);
-				MoveToEx(hdc, region.right, region.top, NULL);
-				LineTo(hdc, region.right, region.bottom);
-				MoveToEx(hdc, region.right, region.bottom, NULL);
-				LineTo(hdc, region.left, region.bottom);
-				MoveToEx(hdc, region.left, region.bottom, NULL);
-				LineTo(hdc, region.left, region.top);
-				MoveToEx(hdc, region.left, region.top, NULL);
-				break;
-			case CIRCLE:
-				prevregion.top = ellipse.top;
-				prevregion.left = ellipse.left;
-				prevregion.right = ellipse.right;
-				prevregion.bottom = ellipse.bottom;
-				ellipse.hdc = hdc;
-				SelectObject(hdc, clearBrush);
-				ellipse.right = x;
-				ellipse.bottom = y;
-				SelectObject(hdc, penDCPen);
-				ellipse.drawEllipse();
-				break;
-			case TRIANGLE:
-				prevregion.top = triangle.vertex1.y;
-				prevregion.left = triangle.vertex1.x;
-				prevregion.right = triangle.vertex3.x;
-				prevregion.bottom = triangle.vertex3.y;
-				triangle.hdc = hdc;
-				SelectObject(hdc, clearBrush);
-				triangle.vertex3.x = x;
-				triangle.vertex3.y = y;
-				triangle.vertex2.x = triangle.vertex1.x;
-				triangle.vertex2.y = y;
-				SelectObject(hdc, penDCPen);
-				triangle.drawTriangle();
-				break;
-			case LINE:
-				prevline.vertex1.x = line.vertex1.x;
-				prevline.vertex1.y = line.vertex1.y;
-				prevline.vertex2.x = line.vertex2.x;
-				prevline.vertex2.y = line.vertex2.y;
-				line.hdc = hdc;
-				SelectObject(hdc, clearBrush);
-				line.vertex2.x = x;
-				line.vertex2.y = y;
-				SelectObject(hdc, penDCPen);
-				line.drawLine();
-				break;
+		case RECTANGLE:
+			prevregion.top = region.top;
+			prevregion.left = region.left;
+			prevregion.right = region.right;
+			prevregion.bottom = region.bottom;
+			SelectObject(hdc, clearBrush);
+			region.right = x;
+			region.bottom = y;
+			drawRectGDI(region);
+			break;
+		case CIRCLE:
+			prevregion.top = ellipse.top;
+			prevregion.left = ellipse.left;
+			prevregion.right = ellipse.right;
+			prevregion.bottom = ellipse.bottom;
+			ellipse.hdc = hdc;
+			SelectObject(hdc, clearBrush);
+			ellipse.right = x;
+			ellipse.bottom = y;
+			SelectObject(hdc, penDCPen);
+			ellipse.drawEllipse();
+			break;
+		case TRIANGLE:
+			prevregion.top = triangle.vertex1.y;
+			prevregion.left = triangle.vertex1.x;
+			prevregion.right = triangle.vertex3.x;
+			prevregion.bottom = triangle.vertex3.y;
+			triangle.hdc = hdc;
+			SelectObject(hdc, clearBrush);
+			triangle.vertex3.x = x;
+			triangle.vertex3.y = y;
+			triangle.vertex2.x = triangle.vertex1.x;
+			triangle.vertex2.y = y;
+			SelectObject(hdc, penDCPen);
+			triangle.drawTriangle();
+			break;
+		case LINE:
+			prevline.vertex1.x = line.vertex1.x;
+			prevline.vertex1.y = line.vertex1.y;
+			prevline.vertex2.x = line.vertex2.x;
+			prevline.vertex2.y = line.vertex2.y;
+			line.hdc = hdc;
+			SelectObject(hdc, clearBrush);
+			line.vertex2.x = x;
+			line.vertex2.y = y;
+			SelectObject(hdc, penDCPen);
+			line.drawLine();
+			break;
 
 		}
 		pushvscr();
 	}
-	else if (imageDrawState == 1) {
+	if (imageDrawState == 1) {
 		for (int i = 0; i < winsizew; i++)
 			for (int i2 = 0; i2 < winsizeh; i2++)
 				vscrmemp[i + winsizew * i2] = tmpregion[i + winsizew * i2];
 		UploadGlobalImage(mdc, x, y);
+	}
+	else {
+		return;
 	}
 }

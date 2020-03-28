@@ -10,14 +10,17 @@
 #include <commctrl.h>
 #include <objidl.h>
 #include <gdiplus.h>
+#include <stdexcept>
 using namespace Gdiplus;
+using std::runtime_error;
 #pragma comment (lib,"Gdiplus.lib")
-
 #define MAX_LOADSTRING 64
 #define FILESTRINGBUFFER 1024
+#define PREVSCREENLIMIT 50
+#define RGB2BGR(a_ulColor) (a_ulColor & 0xFF000000) | ((a_ulColor & 0xFF0000) >> 16) | (a_ulColor & 0x00FF00) | ((a_ulColor & 0x0000FF) << 16)
 HINSTANCE hInst;                                // current instance
 WCHAR szTitle[MAX_LOADSTRING];                  // The title bar text
-WCHAR szWindowClass[MAX_LOADSTRING];            // the main window class name
+WCHAR szWindowClass[MAX_LOADSTRING];    // the main window class name
 HBRUSH penBrush;
 extern HBRUSH clearBrush;
 HBITMAP hImg;
@@ -27,11 +30,12 @@ HDC hdc, mdc, sdc;
 LOGBRUSH hatchBrush;
 char filestring[FILESTRINGBUFFER];
 unsigned long* vscrmemp;
+LineCap lineCap;
 int brushHatch = HS_CROSS;
 int brushState = BS_SOLID;
 int thickness = PS_SOLID;
 int thickness2 = 3;
-int pencilState = 1;
+int pencilState = 2;
 int eraserState = 1;
 int bucketState = 1;
 int dropperState = 1;
@@ -40,18 +44,29 @@ int objectType = NONE;
 int penColor = BLACK;
 int eraserThickness = 3;
 int eraserType = NORMAL; 
-int winsizew = 1280;
-int winsizeh = 786;
+int winsizew = WIDTH;
+int winsizeh = HEIGHT;
 int imageDrawState = 0;
+int objectTransformState = 0;
+int utensilType = MARKER;
 wchar_t imageFileField[FILESTRINGBUFFER];
+extern int texturePenState;
 extern int eraserState2;
 extern int drawstate;
 extern int shapedrawstate;
 extern int lbuttonstate;
-extern unsigned long tmpregion[1280 * 786];
-unsigned long prevscreens[100][1280 * 786];
+extern int gradientPenState;
+extern int objectIndex;
+extern Color gradientColor1;
+extern Color gradientColor2;
+extern int selectState;
+extern int selectTransformState;
+extern RECT focusRect;
+extern unsigned long tmpregion[WIDTH * HEIGHT];
+unsigned long prevscreens[PREVSCREENLIMIT][WIDTH * HEIGHT];
 int prevscreenindex = 0;
 int maxprevscreen = 0;
+extern wchar_t currentBrushTexture[64];
 CHOOSECOLOR chooseColor;
 extern void         initClearPen(void);
 extern void         BlackWhite(void);
@@ -61,21 +76,23 @@ extern void         BlueFilter(void);
 extern void         WhiteBlack(void);
 extern void         ApplyCustomFilter(int color);
 HWND hWnd;
-void                checkToolbarItems(void);
 ATOM                MyRegisterClass(HINSTANCE hInstance);
 BOOL                InitInstance(HINSTANCE, int);
 LRESULT CALLBACK    WndProc(HWND, UINT, WPARAM, LPARAM);
-INT_PTR CALLBACK Controls(HWND, UINT, WPARAM, LPARAM);
+//INT_PTR CALLBACK Controls(HWND, UINT, WPARAM, LPARAM);
 INT_PTR CALLBACK ColorPallette(HWND, UINT, WPARAM, LPARAM);
 INT_PTR CALLBACK MainToolbar(HWND, UINT, WPARAM, LPARAM);
-INT_PTR CALLBACK HatchMenu(HWND, UINT, WPARAM, LPARAM);
+INT_PTR CALLBACK GradientTool(HWND, UINT, WPARAM, LPARAM);
+INT_PTR CALLBACK UtensilSuite(HWND, UINT, WPARAM, LPARAM);
+INT_PTR CALLBACK IntroDialog(HWND, UINT, WPARAM, LPARAM);
 
-void                initMemBitmap(HDC hdc);
+void initMemBitmap(HDC hdc);
 void pushvscr(void);
-extern void mylmousemove (int x, int y, HDC hdc);
+extern void mylmousemove (int x, int y);
 extern void myrmousemove(int x, int y, HDC hdc);
 extern void mylbutton(int x, int y, HDC hdc);
 extern void mymousemove(int x, int y, HDC hdc);
+extern void mylbuttonup(int x, int y, HDC hdc);
 
 
 VOID initChooseColorStruct(void) {
@@ -97,57 +114,32 @@ VOID initChooseColorStruct(void) {
     penColor = chooseColor.rgbResult;
 
 }
-VOID OnPaint(HDC hdc) {
-    Graphics graphics(hdc);
-    HPEN blackPen = CreatePen(BS_SOLID, 3, 0x343434);
-    RECT frame;
-    frame.left = 0; 
-    frame.right = winsizew;
-    frame.top = 0;
-    frame.bottom = winsizeh;
-    SelectObject(hdc, blackPen);
-    MoveToEx(hdc, frame.left, frame.top, NULL);
-    LineTo(hdc, frame.right, frame.top);
-    MoveToEx(hdc, frame.right, frame.top, NULL);
-    LineTo(hdc, frame.right, frame.bottom);
-    MoveToEx(hdc, frame.right, frame.bottom, NULL);
-    LineTo(hdc, frame.left, frame.bottom);
-    MoveToEx(hdc, frame.left, frame.bottom, NULL);
-    LineTo(hdc, frame.left, frame.top);
-    MoveToEx(hdc, frame.left, frame.top, NULL);
-    pushvscr();
-}
 VOID UploadGlobalImage(HDC hdc, int x, int y)
 {
     Graphics graphics(hdc);
     Image image(imageFileField);
-    if ((int)image.GetWidth() > winsizew || (int)image.GetHeight() > winsizeh)
-        graphics.DrawImage(&image, x, y, winsizew/2, winsizeh/2);
-    else
-        graphics.DrawImage(&image, x, y);
+    graphics.DrawImage(&image, x, y, image.GetWidth(), image.GetHeight());
     pushvscr();
 }
 
 int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
                      _In_opt_ HINSTANCE hPrevInstance,
                      _In_ LPWSTR    lpCmdLine,
-                     _In_ int       nCmdShow)
+                     _In_ int       nCmdShow) 
 {
     GdiplusStartupInput gdiplusStartupInput;
     ULONG_PTR           gdiplusToken;
-
-    // Initialize GDI+.
+    HWND IntroHandle;
     GdiplusStartup(&gdiplusToken, &gdiplusStartupInput, NULL);
     UNREFERENCED_PARAMETER(hPrevInstance);
     UNREFERENCED_PARAMETER(lpCmdLine);
+    wsprintf(currentBrushTexture, L"BrushTexture11.png");
     LoadStringW(hInstance, IDS_APP_TITLE, szTitle, MAX_LOADSTRING);
     LoadStringW(hInstance, IDC_VISUALARTSTUDIO, szWindowClass, MAX_LOADSTRING);
     MyRegisterClass(hInstance);
-    if (!InitInstance (hInstance, nCmdShow))
-    {
+    if (!InitInstance (hInstance, nCmdShow)){
         return FALSE;
     }
-    HACCEL hAccelTable = LoadAccelerators(hInstance, MAKEINTRESOURCE(IDC_VISUALARTSTUDIO));
     MSG msg;
     hdc = GetDC(hWnd);
     sdc = hdc;
@@ -155,19 +147,54 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
     initMemBitmap(hdc);
     
     CreateDialog(hInst, MAKEINTRESOURCE(IDD_DIALOG3), hWnd, MainToolbar);
-    while (GetMessage(&msg, nullptr, 0, 0))
+    CreateDialog(hInst, MAKEINTRESOURCE(IDD_DIALOG7), hWnd, UtensilSuite);
+    while (GetMessage(&msg, NULL, 0, 0))
     {
-        if (!TranslateAccelerator(msg.hwnd, hAccelTable, &msg))
-        {
-            TranslateMessage(&msg);
-            DispatchMessage(&msg);
-        }
+        TranslateMessage(&msg);
+        DispatchMessage(&msg);
     }
     GdiplusShutdown(gdiplusToken);
     ReleaseDC(hWnd, hdc);
-    return (int) msg.wParam;
+    return msg.wParam;
 }
 
+void initMemBitmap(HDC hdc) {
+    int k;
+    HBITMAP hbmapm;
+    BITMAP bma;
+    BITMAPINFO bmi;
+    HDC memdc;
+    unsigned long* lp;
+    char ss[64];
+    for (k = 0; k < 64; k++)
+        ss[k] = 0x20;
+
+    bmi.bmiHeader.biSize = sizeof(BITMAPINFOHEADER);
+    bmi.bmiHeader.biWidth = winsizew;
+    bmi.bmiHeader.biHeight = -(winsizeh);
+    bmi.bmiHeader.biPlanes = 1;
+    bmi.bmiHeader.biBitCount = 32;
+    bmi.bmiHeader.biCompression = 0; 
+    bmi.bmiHeader.biSizeImage = 0;
+    hbmapm = CreateDIBSection(0, &bmi, DIB_RGB_COLORS, (void**)&lp, 0, 0);
+
+    memdc = CreateCompatibleDC(0);	
+    SelectObject(memdc, hbmapm);
+    GetObject(hbmapm, sizeof(BITMAP), &bma);
+    for (k = 0; k < winsizeh * winsizew; k++)
+        lp[k] = WHITE;
+
+    BitBlt(hdc, 0, 0, winsizew, winsizeh, memdc, 0, 0, SRCCOPY);
+
+    mdc = memdc;
+    vscrmemp = lp;
+}
+
+
+
+VOID OnPaint(HDC hdc) {
+    Graphics graphics(hdc);
+}
 PWSTR fileOpenFunction(void) {
     wchar_t tmp[] = L"Temp";
     PWSTR returnFileName = tmp;
@@ -242,7 +269,6 @@ PWSTR fileSaveAsFunction(void) {
     return (returnFileName);
 }
 
-
 ATOM MyRegisterClass(HINSTANCE hInstance)
 {
     WNDCLASSEXW wcex;
@@ -254,7 +280,7 @@ ATOM MyRegisterClass(HINSTANCE hInstance)
     wcex.cbWndExtra     = 0;
     wcex.hInstance      = hInstance;
     wcex.hIcon          = LoadIcon(hInstance, MAKEINTRESOURCE(IDI_VISUALARTSTUDIO));
-    wcex.hCursor        = LoadCursor(nullptr, IDC_ARROW);
+    wcex.hCursor        = LoadCursor(NULL, IDC_HAND);
     wcex.hbrBackground  = (HBRUSH)(COLOR_WINDOW+1);
     wcex.lpszMenuName   = MAKEINTRESOURCEW(IDC_VISUALARTSTUDIO);
     wcex.lpszClassName  = szWindowClass;
@@ -267,7 +293,7 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
 {
    hInst = hInstance; 
 
-   hWnd = CreateWindowW(szWindowClass, szTitle, WS_OVERLAPPEDWINDOW,
+   hWnd = CreateWindowW(szWindowClass, szTitle, WS_VISIBLE | WS_SYSMENU | WS_CAPTION | WS_SIZEBOX| WS_MINIMIZEBOX | WS_DLGFRAME,
       CW_USEDEFAULT, CW_USEDEFAULT, winsizew, winsizeh, nullptr, nullptr, hInstance, nullptr);
 
    if (!hWnd)
@@ -276,99 +302,7 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
    }
 
    ShowWindow(hWnd, nCmdShow);
-   UpdateWindow(hWnd);
    return TRUE;
-}
-
-void initMemBitmap(HDC hdc) {
-    int k;
-    HBITMAP hbmapm;
-    BITMAP bma;
-    BITMAPINFO bmi;
-    HDC memdc;
-    unsigned long* lp;
-    char ss[64];
-    for (k = 0; k < 64; k++)
-        ss[k] = 0x20;
-
-    bmi.bmiHeader.biSize = sizeof(BITMAPINFOHEADER);
-    bmi.bmiHeader.biWidth = winsizew;
-    bmi.bmiHeader.biHeight = -winsizeh;
-    bmi.bmiHeader.biPlanes = 1;
-    bmi.bmiHeader.biBitCount = 32;
-    bmi.bmiHeader.biCompression = BI_RGB;
-    bmi.bmiHeader.biSizeImage = 0;
-    hbmapm = CreateDIBSection(0, &bmi, DIB_RGB_COLORS, (void**)&lp, 0, 0);
-
-    memdc = CreateCompatibleDC(0);	/* 0 for app's screen */
-    SelectObject(memdc, hbmapm);
-    GetObject(hbmapm, sizeof(BITMAP), &bma);
-    for (k = 0; k < winsizeh * winsizew; k++)
-        lp[k] = WHITE;
-
-    BitBlt(hdc, 0, 0, winsizew, winsizeh, memdc, 0, 0, SRCCOPY);
-
-    mdc = memdc;
-    vscrmemp = lp;
-}
-
-void pushvscr(void) {
-    BitBlt(sdc, 0, 0, winsizew, winsizeh, mdc, 0, 0, SRCCOPY);
-}
-
-
-int ldbmpf(char* fnm, int xPos, int yPos)
-{
-    int imgf, k, x;
-    int imgw, imgh, bpp, cph, cpw;
-    unsigned char hdr[32];
-    unsigned long imgp, px;
-    unsigned char pp[1024 * 10 * 4];
-
-    imgf = _open(fnm, _O_RDONLY | _O_BINARY);
-    if (imgf == -1)
-        return 0;
-    _read(imgf, hdr, 32);
-
-    imgp = *((unsigned long*)&hdr[10]);
-    imgw = *((unsigned long*)&hdr[18]);
-    imgh = *((unsigned long*)&hdr[22]);
-    bpp = *((unsigned short*)&hdr[28]);
-
-    cpw = winsizew;
-    cph = winsizeh;
-
-    if (imgw < winsizew) cpw = imgw;
-    if (imgh < winsizeh) cph = imgh;
-
-    for (k = yPos; k < cph+yPos; k++)
-    {
-        _lseek(imgf, imgp + (cph - k - 1) * cpw * 3, SEEK_SET);
-        _read(imgf, pp, 3 * cpw);
-        for (x = xPos; x < cpw+xPos; x++)
-        {
-            unsigned long r, g, b;
-            r = pp[x * 3 + 2];
-            g = pp[x * 3 + 1];
-            b = pp[x * 3];
-            px = (r << 16) | (g << 8) | b;
-            vscrmemp[k * winsizew + x] = px;
-        }
-    }
-
-    return 1;
-}
-
-void setPenAndBrush(int color) {
-    hatchBrush.lbHatch = brushHatch;
-    hatchBrush.lbColor = color;
-    hatchBrush.lbStyle = brushState;
-    SelectObject(mdc, GetStockObject(DC_BRUSH));
-    SetDCBrushColor(mdc, color);
-    penBrush = CreateSolidBrush(GetDCBrushColor(mdc));
-    penColor = color;
-    SelectObject(mdc, GetStockObject(DC_PEN));
-    penDCPen = ExtCreatePen(PS_GEOMETRIC | thickness, thickness2, &hatchBrush, PS_ENDCAP_ROUND, PS_JOIN_ROUND);
 }
 
 void DrawRect(HDC hdc, int left, int top, int right, int bottom, int state) {
@@ -378,7 +312,7 @@ void DrawRect(HDC hdc, int left, int top, int right, int bottom, int state) {
     region.top = top;
     region.bottom = bottom;
     SelectObject(hdc, GetStockObject(DC_PEN));
-    if(state == 1)
+    if (state == 1)
         SelectPen(hdc, CreatePen(BS_SOLID, 2, BLACK));
     else
         SelectPen(hdc, CreatePen(BS_SOLID, 2, 0xf0f0f0));
@@ -393,6 +327,22 @@ void DrawRect(HDC hdc, int left, int top, int right, int bottom, int state) {
     MoveToEx(hdc, region.left, region.top, NULL);
 }
 
+void pushvscr(void) {
+    BitBlt(sdc, 125, 0, winsizew-320, winsizeh, mdc,125, 0, SRCCOPY);  
+}
+
+void setPenAndBrush(int color) {
+    hatchBrush.lbHatch = brushHatch;
+    hatchBrush.lbColor = color;
+    hatchBrush.lbStyle = brushState;
+    SelectObject(mdc, GetStockObject(DC_BRUSH));
+    SetDCBrushColor(mdc, color);
+    penBrush = CreateSolidBrush(GetDCBrushColor(mdc));
+    penColor = color;
+    SelectObject(mdc, GetStockObject(DC_PEN));
+    penDCPen = ExtCreatePen(PS_GEOMETRIC | thickness, thickness2, &hatchBrush, PS_ENDCAP_ROUND, PS_JOIN_ROUND);
+}
+
 LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 {
     PAINTSTRUCT ps;  
@@ -400,7 +350,6 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
     unsigned long* tmpl;
     tmpl = vscrmemp;
     char fileField[FILESTRINGBUFFER];
-    HWND controlDialog;
     Graphics graphics(mdc);
     Image newImage(L"Blank");
     wsprintfA(fileField, "\0");
@@ -685,10 +634,10 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
             CreateDialog(hInst, MAKEINTRESOURCE(IDD_DIALOG2), hWnd, ColorPallette);
             break;
         case ID_ERASEROPTIONS_CUSTOMTHICKNESS:
-            CreateDialog(hInst, MAKEINTRESOURCE(IDD_DIALOGBAR), hWnd, Controls);
+            //CreateDialog(hInst, MAKEINTRESOURCE(IDD_DIALOGBAR), hWnd, Controls);
             break;
         case ID_PENS_CUSTOMTHICKNESS:
-            CreateDialog(hInst, MAKEINTRESOURCE(IDD_DIALOGBAR), hWnd, Controls);
+            //CreateDialog(hInst, MAKEINTRESOURCE(IDD_DIALOGBAR), hWnd, Controls);
             break;
         case ID_FILTERS_BLACKWHITE:
             BlackWhite();
@@ -726,13 +675,11 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
             for (int i = 0; i < winsizew; i++)
                 for (int i2 = 0; i2 < winsizeh; i2++)
                     tmpregion[i + winsizew * i2] = vscrmemp[i + winsizew * i2];
-            UploadGlobalImage(mdc, 0, 0);
             imageDrawState = 1;
             break;
         default:
             return DefWindowProc(hWnd, message, wParam, lParam);
         }
-        checkToolbarItems();
     }
     return(0);
     case WM_MOUSEMOVE:
@@ -742,7 +689,9 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
             CheckMenuItem(GetMenu(hWnd), ID_OBJECTS_TRIANGLE, MF_UNCHECKED);
             CheckMenuItem(GetMenu(hWnd), ID_OBJECTS_CIRCLE, MF_UNCHECKED);
             CheckMenuItem(GetMenu(hWnd), ID_OBJECTS_RECTANGLE, MF_UNCHECKED);
-            mylmousemove(GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam), mdc);
+            if(GET_X_LPARAM(lParam) > 100 && GET_X_LPARAM(lParam) < winsizew && GET_Y_LPARAM(lParam) > 50 && GET_Y_LPARAM(lParam) < winsizeh)
+            mylmousemove(GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam));
+            pushvscr();
         }
         else if (wParam & MK_RBUTTON) {
             myrmousemove(GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam), mdc);
@@ -755,24 +704,20 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
         mylbutton(GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam), mdc);
         return(0);
     case WM_LBUTTONUP:
-        if (prevscreenindex < 99) {
-            for (int i = 0; i < 1280; i++)
-                for (int i2 = 0; i2 < 786; i2++)
-                    prevscreens[prevscreenindex][i + 1280 * i2] = vscrmemp[i + 1280 * i2];
-            prevscreenindex += 1;
-            maxprevscreen += 1;
-        }
-            if (shapedrawstate == 0) {
-                EndDialog(toolbarHandle, NULL);
-                CreateDialog(hInst, MAKEINTRESOURCE(IDD_DIALOG3), hWnd, MainToolbar);
+            if (prevscreenindex < PREVSCREENLIMIT) {
+                for (int i = 0; i < 1280; i++)
+                    for (int i2 = 0; i2 < 786; i2++)
+                        prevscreens[prevscreenindex][i + WIDTH * i2] = vscrmemp[i + WIDTH * i2];
+                prevscreenindex += 1;
+                maxprevscreen += 1;
             }
+
             eraserState2 = 0;
             drawstate = 0;
             return(0);
         case WM_PAINT:
             {
                 BeginPaint(hWnd, &ps);  
-                OnPaint(mdc);
                 pushvscr();
                 EndPaint(hWnd, &ps);
             }
@@ -786,7 +731,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
     return 0;
 }
 
-void printColorInfo(HWND hDlg, RECT testColorRect, LPARAM lParam, char *colorVal, char rgb[3][8]) {
+/*void printColorInfo(HWND hDlg, RECT testColorRect, LPARAM lParam, char *colorVal, char rgb[3][8]) {
     drawstate = 0;
     penColor = GetPixel(GetDC(hDlg), GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam));
     sprintf(colorVal, "\0");
@@ -804,96 +749,97 @@ void printColorInfo(HWND hDlg, RECT testColorRect, LPARAM lParam, char *colorVal
     TextOutA(GetDC(hDlg), 70, 267, (LPCSTR)rgb[2], 3);
     setPenAndBrush(penColor);
     FillRect(GetDC(hDlg), &testColorRect, CreateSolidBrush(penColor));
-}
+}*/
 
-void checkToolbarItems(void) {
+/*void checkToolbarItems(void) {
     HWND hDlg = toolbarHandle;
     if (pencilState % 2 == 0) {
-        DrawRect(GetDC(hDlg), 510, 10, 568, 60, 1);
-        DrawRect(GetDC(hDlg), 580, 10, 638, 60, 0);
-        DrawRect(GetDC(hDlg), 648, 10, 708, 60, 0);
-        DrawRect(GetDC(hDlg), 718, 10, 775, 60, 0);
+        DrawRect(GetDC(hDlg), 22, 239, 78, 292, 1);
+        DrawRect(GetDC(hDlg), 22, 305, 79, 357, 0);
+        DrawRect(GetDC(hDlg), 22, 366, 79, 420, 0);
+        DrawRect(GetDC(hDlg), 20, 430, 80, 483, 0);
     }
     else if (eraserState % 2 == 0) {
-        DrawRect(GetDC(hDlg), 510, 10, 568, 60, 0);
-        DrawRect(GetDC(hDlg), 580, 10, 638, 60, 1);
-        DrawRect(GetDC(hDlg), 648, 10, 708, 60, 0);
-        DrawRect(GetDC(hDlg), 718, 10, 775, 60, 0);
+        DrawRect(GetDC(hDlg), 22, 239, 78, 292, 0);
+        DrawRect(GetDC(hDlg), 22, 305, 79, 357, 1);
+        DrawRect(GetDC(hDlg), 22, 366, 79, 420, 0);
+        DrawRect(GetDC(hDlg), 20, 430, 80, 483, 0);
     }
     else if (bucketState % 2 == 0) {
-        DrawRect(GetDC(hDlg), 510, 10, 568, 60, 0);
-        DrawRect(GetDC(hDlg), 580, 10, 638, 60, 0);
-        DrawRect(GetDC(hDlg), 648, 10, 708, 60, 1);
-        DrawRect(GetDC(hDlg), 718, 10, 775, 60, 0);
+        DrawRect(GetDC(hDlg), 22, 239, 78, 292, 0);
+        DrawRect(GetDC(hDlg), 22, 305, 79, 357, 0);
+        DrawRect(GetDC(hDlg), 22, 366, 79, 420, 1);
+        DrawRect(GetDC(hDlg), 20, 430, 80, 483, 0);
     }
     else if (dropperState % 2 == 0) {
-        DrawRect(GetDC(hDlg), 510, 10, 568, 60, 0);
-        DrawRect(GetDC(hDlg), 580, 10, 638, 60, 0);
-        DrawRect(GetDC(hDlg), 648, 10, 708, 60, 0);
-        DrawRect(GetDC(hDlg), 718, 10, 775, 60, 1);
+        DrawRect(GetDC(hDlg), 22, 239, 78, 292, 0);
+        DrawRect(GetDC(hDlg), 22, 305, 79, 357, 0);
+        DrawRect(GetDC(hDlg), 22, 366, 79, 420, 0);
+        DrawRect(GetDC(hDlg), 20, 430, 80, 483, 1);
+    }
+    else {
+        DrawRect(GetDC(hDlg), 22, 239, 78, 292, 0);
+        DrawRect(GetDC(hDlg), 22, 305, 79, 357, 0);
+        DrawRect(GetDC(hDlg), 22, 366, 79, 420, 0);
+        DrawRect(GetDC(hDlg), 20, 430, 80, 483, 0);
     }
     switch (objectType) {
     case RECTANGLE:
-        DrawRect(GetDC(hDlg), 90, 31, 118, 55, 1);
-        DrawRect(GetDC(hDlg), 120, 31, 150, 55, 0);
-        DrawRect(GetDC(hDlg), 155, 31, 180, 55, 0);
-        DrawRect(GetDC(hDlg), 185, 31, 210, 55, 0);
+        DrawRect(GetDC(hDlg), 20, 87, 47, 114, 1);
+        DrawRect(GetDC(hDlg), 50, 85, 79, 111, 0);
+        DrawRect(GetDC(hDlg), 20, 116, 46, 139, 0);
+        DrawRect(GetDC(hDlg), 52, 116, 78, 149, 0);
         break;
     case TRIANGLE:
-        DrawRect(GetDC(hDlg), 90, 31, 118, 55, 0);
-        DrawRect(GetDC(hDlg), 120, 31, 150, 55, 0);
-        DrawRect(GetDC(hDlg), 155, 31, 180, 55, 1);
-        DrawRect(GetDC(hDlg), 185, 31, 210, 55, 0);
+        DrawRect(GetDC(hDlg), 20, 87, 47, 114, 0);
+        DrawRect(GetDC(hDlg), 50, 85, 79, 111, 0);
+        DrawRect(GetDC(hDlg), 20, 116, 46, 139, 1);
+        DrawRect(GetDC(hDlg), 52, 116, 78, 140, 0);
         break;
     case CIRCLE:
-        DrawRect(GetDC(hDlg), 90, 31, 118, 55, 0);
-        DrawRect(GetDC(hDlg), 120, 31, 150, 55, 1);
-        DrawRect(GetDC(hDlg), 155, 31, 180, 55, 0);
-        DrawRect(GetDC(hDlg), 185, 31, 210, 55, 0);
+        DrawRect(GetDC(hDlg), 20, 87, 47, 114, 0);
+        DrawRect(GetDC(hDlg), 50, 85, 79, 111, 1);
+        DrawRect(GetDC(hDlg), 20, 116, 46, 139, 0);
+        DrawRect(GetDC(hDlg), 52, 116, 78, 140, 0);
         break;
     case LINE:
-        DrawRect(GetDC(hDlg), 90, 31, 118, 55, 0);
-        DrawRect(GetDC(hDlg), 120, 31, 150, 55, 0);
-        DrawRect(GetDC(hDlg), 155, 31, 180, 55, 0);
-        DrawRect(GetDC(hDlg), 185, 31, 210, 55, 1);
+        DrawRect(GetDC(hDlg), 22, 87, 47, 114, 0);
+        DrawRect(GetDC(hDlg), 50, 85, 79, 111, 0);
+        DrawRect(GetDC(hDlg), 20, 116, 46, 139, 0);
+        DrawRect(GetDC(hDlg), 52, 116, 78, 140, 1);
+        break;
+    default:
+        DrawRect(GetDC(hDlg), 20, 87, 47, 114, 0);
+        DrawRect(GetDC(hDlg), 50, 85, 79, 111, 0);
+        DrawRect(GetDC(hDlg), 20, 116, 46, 139, 0);
+        DrawRect(GetDC(hDlg), 52, 116, 78, 140, 0);
         break;
     }
     switch (penType) {
     case BOLD:
-        DrawRect(GetDC(hDlg), 223, 31, 250, 55, 1);
-        DrawRect(GetDC(hDlg), 250, 31, 283, 55, 0);
-        DrawRect(GetDC(hDlg), 280, 31, 308, 55, 0);
+        DrawRect(GetDC(hDlg), 19, 173, 46, 197, 1);
+        DrawRect(GetDC(hDlg), 52, 174, 81, 198, 0);
+        DrawRect(GetDC(hDlg), 20, 200, 46, 225, 0);
         break;
     case NORMAL:
-        DrawRect(GetDC(hDlg), 223, 31, 250, 55, 0);
-        DrawRect(GetDC(hDlg), 250, 31, 283, 55, 1);
-        DrawRect(GetDC(hDlg), 280, 31, 308, 55, 0);
+        DrawRect(GetDC(hDlg), 19, 173, 46, 197, 0);
+        DrawRect(GetDC(hDlg), 52, 174, 81, 198, 1);
+        DrawRect(GetDC(hDlg), 20, 200, 46, 225, 0);
         break;
     case THIN:
-        DrawRect(GetDC(hDlg), 223, 31, 250, 55, 0);
-        DrawRect(GetDC(hDlg), 250, 31, 283, 55, 0);
-        DrawRect(GetDC(hDlg), 280, 31, 308, 55, 1);
+        DrawRect(GetDC(hDlg), 19, 173, 46, 197, 0);
+        DrawRect(GetDC(hDlg), 52, 174, 81, 198, 0);
+        DrawRect(GetDC(hDlg), 20, 200, 46, 225, 1);
+        break;
+    default:
+        DrawRect(GetDC(hDlg), 19, 173, 46, 197, 0);
+        DrawRect(GetDC(hDlg), 52, 174, 81, 198, 0);
+        DrawRect(GetDC(hDlg), 20, 200, 46, 225, 0);
         break;
     }
-    switch (thickness) {
-    case PS_SOLID:
-        DrawRect(GetDC(hDlg), 370, 31, 395, 55, 1);
-        DrawRect(GetDC(hDlg), 400, 31, 425, 55, 0);
-        DrawRect(GetDC(hDlg), 430, 31, 455, 55, 0);
-        break;
-    case PS_DASH:
-        DrawRect(GetDC(hDlg), 370, 31, 395, 55, 0);
-        DrawRect(GetDC(hDlg), 400, 31, 425, 55, 1);
-        DrawRect(GetDC(hDlg), 430, 31, 455, 55, 0);
-        break;
-    case PS_DOT:
-        DrawRect(GetDC(hDlg), 370, 31, 395, 55, 0);
-        DrawRect(GetDC(hDlg), 400, 31, 425, 55, 0);
-        DrawRect(GetDC(hDlg), 430, 31, 455, 55, 1);
-        break;
-    }
-}
-INT_PTR CALLBACK Controls(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam)
+}*/
+
+/*INT_PTR CALLBACK Controls(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam)
 {
     UNREFERENCED_PARAMETER(lParam);
     char tmp[16];
@@ -937,36 +883,195 @@ INT_PTR CALLBACK Controls(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam)
         break;
     }
     return (INT_PTR)FALSE;
+}*/
+
+INT_PTR CALLBACK UtensilSuite(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam) {
+    int x, y;
+    char tmp[16];
+    HBITMAP hbit;
+    wchar_t coordinates[16];
+    HWND sliderHandle = GetDlgItem(hDlg, IDC_SLIDER1);
+    HWND redHandle = GetDlgItem(hDlg, IDC_SLIDER2);
+    HWND blueHandle = GetDlgItem(hDlg, IDC_SLIDER3);
+    HWND greenHandle = GetDlgItem(hDlg, IDC_SLIDER4);
+    Color pColor;
+    GdiplusStartupInput gdiplusStartupInput;
+    ULONG_PTR           gdiplusToken;
+    GdiplusStartup(&gdiplusToken, &gdiplusStartupInput, NULL);
+    Graphics graphics(GetDC(hDlg));
+    SolidBrush solidBrush(Color(0, 0, 0));
+    Pen solidPen(&solidBrush);
+    Pen flatPen(&solidBrush);
+    Pen roundPen(&solidBrush);
+    Pen trianglePen(&solidBrush);
+    Point point1(10, 235);
+    Point point2(135, 235);
+    graphics.SetSmoothingMode(SmoothingModeAntiAlias);
+    solidPen.SetEndCap(LineCapRound);
+    solidPen.SetStartCap(LineCapRound);   
+    //Set Flat/Square-Cap Pen Attributes
+    flatPen.SetEndCap(LineCapFlat);
+    flatPen.SetStartCap(LineCapFlat);
+    flatPen.SetColor(Color(0, 0, 0));
+    flatPen.SetWidth(15);
+    //Set Round-Cap Pen Attributes
+    roundPen.SetEndCap(LineCapRound);
+    roundPen.SetStartCap(LineCapRound);
+    roundPen.SetColor(Color(0, 0, 0));
+    roundPen.SetWidth(15);
+    //Set Tri-Cap Pen Attributes
+    trianglePen.SetEndCap(LineCapTriangle);
+    trianglePen.SetStartCap(LineCapTriangle);
+    trianglePen.SetColor(Color(0, 0, 0));
+    trianglePen.SetWidth(15);
+    
+    graphics.DrawLine(&flatPen, Point(95, 360), Point(135, 360));
+    graphics.DrawLine(&roundPen, Point(95, 384), Point(135, 384));
+    graphics.DrawLine(&trianglePen, Point(95, 409), Point(135, 409));
+    wsprintfW(coordinates, L"\0");
+    UNREFERENCED_PARAMETER(lParam);
+    switch (message) {
+    case WM_CREATE:
+        return (INT_PTR)TRUE;
+    case WM_HSCROLL:
+        solidBrush.SetColor(Color(240, 240, 240));
+        graphics.FillRectangle(&solidBrush, Rect(0, 210, 160, 60));
+        if(SendMessageW(sliderHandle, TBM_GETPOS, 0, 0)/2 < 45)
+            thickness2 = SendMessageW(sliderHandle, TBM_GETPOS, 0, 0)/2;
+        solidPen.SetWidth(thickness2);
+        solidPen.SetEndCap(lineCap);
+        solidPen.SetStartCap(lineCap);
+        solidPen.SetColor(Color(SendMessageW(redHandle, TBM_GETPOS, 0, 0)*2.55, SendMessageW(greenHandle, TBM_GETPOS, 0, 0) * 2.55, SendMessageW(blueHandle , TBM_GETPOS, 0, 0) * 2.55));
+        pColor = Color(SendMessageW(redHandle, TBM_GETPOS, 0, 0) * 2.55, SendMessageW(greenHandle, TBM_GETPOS, 0, 0) * 2.55, SendMessageW(blueHandle, TBM_GETPOS, 0, 0) * 2.55);
+        gradientColor2 = pColor;
+        penColor = pColor.GetValue();
+        penColor = RGB2BGR(penColor);
+        gradientColor1 = RGB2BGR(gradientColor2.GetValue());
+        graphics.DrawBezier(&solidPen, Point(10, 235), Point(50, 270), Point(90, 210), Point(130, 240));
+        setPenAndBrush(penColor);
+        return (INT_PTR)TRUE;
+    case WM_INITDIALOG:
+        return (INT_PTR)TRUE;
+    case WM_COMMAND:
+        solidBrush.SetColor(Color(240, 240, 240));
+        graphics.FillRectangle(&solidBrush, Rect(0, 210, 160, 60));
+        switch (LOWORD(wParam)) {
+        case IDC_CHECK1:
+            penColor = RGB2BGR(penColor);
+            lineCap = LineCapFlat;
+            solidPen.SetWidth(thickness2);
+            solidPen.SetColor(penColor);
+            solidPen.SetEndCap(lineCap);
+            solidPen.SetStartCap(lineCap);
+            graphics.DrawBezier(&solidPen, Point(10, 235), Point(50, 270), Point(90, 210), Point(130, 240));
+            return (INT_PTR)TRUE;
+        case IDC_CHECK2:
+            penColor = RGB2BGR(penColor);
+            lineCap = LineCapRound;
+            solidPen.SetWidth(thickness2);
+            solidPen.SetColor(penColor);
+            solidPen.SetEndCap(lineCap);
+            solidPen.SetStartCap(lineCap);
+            graphics.DrawBezier(&solidPen, Point(10, 235), Point(50, 270), Point(90, 210), Point(130, 240));
+            return (INT_PTR)TRUE;
+        case IDC_CHECK3:
+            penColor = RGB2BGR(penColor);
+            lineCap = LineCapTriangle;
+            solidPen.SetWidth(thickness2);
+            solidPen.SetColor(penColor);
+            solidPen.SetEndCap(lineCap);
+            solidPen.SetStartCap(lineCap);
+            graphics.DrawBezier(&solidPen, Point(10, 235), Point(50, 270), Point(90, 210), Point(130, 240));
+            return (INT_PTR)TRUE;
+        case IDOK:
+            return (INT_PTR)TRUE;
+        case IDCANCEL:
+            return(INT_PTR)TRUE;
+        }
+        break;
+    case WM_LBUTTONDOWN:
+        if (GET_X_LPARAM(lParam) > 52 && GET_X_LPARAM(lParam) < 97 && GET_Y_LPARAM(lParam) > 45 && GET_Y_LPARAM(lParam) < 93) {
+            texturePenState = 0;
+            gradientPenState = 0;
+            utensilType = CALLIGRAPHYPEN;
+        }
+        else if (GET_X_LPARAM(lParam) > 96 && GET_X_LPARAM(lParam) < 146 && GET_Y_LPARAM(lParam) > 49 && GET_Y_LPARAM(lParam) < 94) {
+            texturePenState = 0;
+            gradientPenState = 0;
+            utensilType = MARKER;
+        }
+        else if (GET_X_LPARAM(lParam) > 0 && GET_X_LPARAM(lParam) < 47 && GET_Y_LPARAM(lParam) > 100 && GET_Y_LPARAM(lParam) < 145) {
+            texturePenState = 1;
+            gradientPenState = 0;
+            utensilType = NONE;
+        }
+        else if (GET_X_LPARAM(lParam) > 53 && GET_X_LPARAM(lParam) < 93 && GET_Y_LPARAM(lParam) > 100 && GET_Y_LPARAM(lParam) < 148) {
+            texturePenState = 0;
+            gradientPenState = 1;
+            utensilType = NONE;
+        }
+        return(INT_PTR)TRUE;
+    case WM_MOUSEMOVE:
+        /*wsprintfW(coordinates, L"%d, %d", GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam));
+        TextOut(GetDC(hDlg), 0, 0, coordinates, 8);*/
+        return(INT_PTR)TRUE;
+    }
+    return (INT_PTR)FALSE;
 }
 
 INT_PTR CALLBACK MainToolbar(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam) {
-    UNREFERENCED_PARAMETER(lParam);
+    static int objectStates[] = { 1, 1, 1, 1 };
     PAINTSTRUCT ps;   
     wchar_t coordinates[16];
     wsprintfW(coordinates, L"\0");
     toolbarHandle = hDlg;
-    HBITMAP hbit;
+    HWND sliderHandle = GetDlgItem(hDlg, IDC_SLIDER1);
+    UNREFERENCED_PARAMETER(lParam);
     switch (message) {
     case WM_CREATE:
         return (INT_PTR)TRUE;
     case WM_LBUTTONDOWN:
-        if (GET_X_LPARAM(lParam) > 90 && GET_X_LPARAM(lParam) < 115) 
-            objectType = RECTANGLE;
-        else if (GET_X_LPARAM(lParam) > 120 && GET_X_LPARAM(lParam) < 150)
-            objectType = CIRCLE;
-        else if (GET_X_LPARAM(lParam) > 155 && GET_X_LPARAM(lParam) < 175)
-            objectType = TRIANGLE;
-        else if (GET_X_LPARAM(lParam) > 190 && GET_X_LPARAM(lParam) < 215)
-            objectType = LINE;
-        else if (GET_X_LPARAM(lParam) > 225 && GET_X_LPARAM(lParam) < 250 && GET_Y_LPARAM(lParam) > 30 && GET_Y_LPARAM(lParam) < 55) {
+        if (GET_X_LPARAM(lParam) > 23 && GET_X_LPARAM(lParam) < 43 && GET_Y_LPARAM(lParam) > 89 && GET_Y_LPARAM(lParam) < 110) {
+            objectStates[0] += 1;
+            if(objectStates[0] % 2 == 0)
+                objectType = RECTANGLE;
+            else 
+                objectType = NONE;
+        }
+        else if (GET_X_LPARAM(lParam) > 51 && GET_X_LPARAM(lParam) < 77 && GET_Y_LPARAM(lParam) > 86 && GET_Y_LPARAM(lParam) < 110) {
+            objectStates[1] += 1;
+            if (objectStates[1] % 2 == 0)
+                objectType = CIRCLE;
+            else
+                objectType = NONE;
+        }
+        else if (GET_X_LPARAM(lParam) > 20 && GET_X_LPARAM(lParam) < 42 && GET_Y_LPARAM(lParam) > 116 && GET_Y_LPARAM(lParam) < 137) {
+            objectStates[2] += 1;
+            if (objectStates[2] % 2 == 0)
+                objectType = TRIANGLE;
+            else
+                objectType = NONE;
+        }
+        else if (GET_X_LPARAM(lParam) > 54 && GET_X_LPARAM(lParam) < 75 && GET_Y_LPARAM(lParam) > 116 && GET_Y_LPARAM(lParam) < 137) {
+            objectStates[3] += 1;
+            if (objectStates[3] % 2 == 0)
+                objectType = LINE;
+            else
+                objectType = NONE;
+        }
+        else if (GET_X_LPARAM(lParam) > 655 && GET_X_LPARAM(lParam) < 875) {
+            penColor = GetPixel(GetDC(hDlg), GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam));
+            setPenAndBrush(penColor);
+        }
+        else if (GET_X_LPARAM(lParam) > 19 && GET_X_LPARAM(lParam) < 45 && GET_Y_LPARAM(lParam) > 175 && GET_Y_LPARAM(lParam) < 192) {
             penType = BOLD;
             thickness2 = 6;
         }
-        else if (GET_X_LPARAM(lParam) > 250 && GET_X_LPARAM(lParam) < 280 && GET_Y_LPARAM(lParam) > 30 && GET_Y_LPARAM(lParam) < 55) {
+        else if (GET_X_LPARAM(lParam) > 52 && GET_X_LPARAM(lParam) < 79 && GET_Y_LPARAM(lParam) > 176 && GET_Y_LPARAM(lParam) < 196) {
             penType = NORMAL;
             thickness2 = 3;
         }
-        else if (GET_X_LPARAM(lParam) > 280 && GET_X_LPARAM(lParam) < 305 && GET_Y_LPARAM(lParam) > 30 && GET_Y_LPARAM(lParam) < 55) {
+        else if (GET_X_LPARAM(lParam) > 20 && GET_X_LPARAM(lParam) < 43 && GET_Y_LPARAM(lParam) > 203 && GET_Y_LPARAM(lParam) < 223) {
             penType = THIN;
             thickness2 = 1;
         }
@@ -980,129 +1085,141 @@ INT_PTR CALLBACK MainToolbar(HWND hDlg, UINT message, WPARAM wParam, LPARAM lPar
         else if (GET_X_LPARAM(lParam) > 430 && GET_X_LPARAM(lParam) < 455 && GET_Y_LPARAM(lParam) > 30 && GET_Y_LPARAM(lParam) < 55) {
             thickness = PS_DOT;
         }
-        else if (GET_X_LPARAM(lParam) > 520 && GET_X_LPARAM(lParam) < 575 && GET_Y_LPARAM(lParam) > 10 && GET_Y_LPARAM(lParam) < 65) {
-            CheckMenuItem(GetMenu(hWnd), ID_OBJECTS_LINE, MF_UNCHECKED);
-            CheckMenuItem(GetMenu(hWnd), ID_OBJECTS_TRIANGLE, MF_UNCHECKED);
-            CheckMenuItem(GetMenu(hWnd), ID_OBJECTS_CIRCLE, MF_UNCHECKED);
-            CheckMenuItem(GetMenu(hWnd), ID_OBJECTS_RECTANGLE, MF_UNCHECKED);
-            shapedrawstate = 0;
-            objectType = NONE;
-            pencilState += 1;
-            dropperState = 1;
-            eraserState = 1;
-            bucketState = 1;
-        }
-        else if (GET_X_LPARAM(lParam) > 590 && GET_X_LPARAM(lParam) < 645 && GET_Y_LPARAM(lParam) > 10 && GET_Y_LPARAM(lParam) < 65) {
-            CheckMenuItem(GetMenu(hWnd), ID_OBJECTS_LINE, MF_UNCHECKED);
-            CheckMenuItem(GetMenu(hWnd), ID_OBJECTS_TRIANGLE, MF_UNCHECKED);
-            CheckMenuItem(GetMenu(hWnd), ID_OBJECTS_CIRCLE, MF_UNCHECKED);
-            CheckMenuItem(GetMenu(hWnd), ID_OBJECTS_RECTANGLE, MF_UNCHECKED);
-            shapedrawstate = 0;
-            objectType = NONE;
-            eraserState += 1;
-            dropperState = 1;
-            pencilState = 1;
-            bucketState = 1;
-        }
-        else if (GET_X_LPARAM(lParam) > 660 && GET_X_LPARAM(lParam) < 715 && GET_Y_LPARAM(lParam) > 10 && GET_Y_LPARAM(lParam) < 65) {
-            CheckMenuItem(GetMenu(hWnd), ID_OBJECTS_LINE, MF_UNCHECKED);
-            CheckMenuItem(GetMenu(hWnd), ID_OBJECTS_TRIANGLE, MF_UNCHECKED);
-            CheckMenuItem(GetMenu(hWnd), ID_OBJECTS_CIRCLE, MF_UNCHECKED);
-            CheckMenuItem(GetMenu(hWnd), ID_OBJECTS_RECTANGLE, MF_UNCHECKED);
-            shapedrawstate = 0;
-            objectType = NONE;
-            bucketState += 1;
-            dropperState = 1;
-            pencilState = 1;
-            eraserState = 1;
-        }
-        else if (GET_X_LPARAM(lParam) > 720 && GET_X_LPARAM(lParam) < 775 && GET_Y_LPARAM(lParam) > 10 && GET_Y_LPARAM(lParam) < 65) {
-            CheckMenuItem(GetMenu(hWnd), ID_OBJECTS_LINE, MF_UNCHECKED);
-            CheckMenuItem(GetMenu(hWnd), ID_OBJECTS_TRIANGLE, MF_UNCHECKED);
-            CheckMenuItem(GetMenu(hWnd), ID_OBJECTS_CIRCLE, MF_UNCHECKED);
-            CheckMenuItem(GetMenu(hWnd), ID_OBJECTS_RECTANGLE, MF_UNCHECKED);
-            shapedrawstate = 0;
-            objectType = NONE;
-            dropperState += 1;
-            bucketState = 1;
-            pencilState = 1;
-            eraserState = 1;
-        }
-        checkToolbarItems();
-    case WM_MOUSEMOVE:
-        /*wsprintfW(coordinates, L"%d, %d", GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam));
-        TextOut(GetDC(hDlg), 0, 0, coordinates, 8);*/
-        return(0);
+    /*case WM_MOUSEMOVE:
+        wsprintfW(coordinates, L"%d, %d", GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam));
+        TextOut(GetDC(hDlg), 0, 0, coordinates, 8);
+        return(0);*/
     case WM_LBUTTONUP:
         return(0);
-    case WM_PAINT:
-        BeginPaint(hDlg, &ps);
-        checkToolbarItems();
-        EndPaint(hDlg, &ps);
-        return (0);
     case WM_INITDIALOG:
+        SendDlgItemMessage(hDlg, IDC_BUTTON1, BM_SETIMAGE, (WPARAM)IMAGE_BITMAP, (LPARAM)LoadBitmap(hInst, MAKEINTRESOURCE(IDB_RECTANGLEBMP)));
+        SendDlgItemMessage(hDlg, IDC_BUTTON6, BM_SETIMAGE, (WPARAM)IMAGE_BITMAP, (LPARAM)LoadBitmap(hInst, MAKEINTRESOURCE(IDB_ELLIPSEBMP)));
+        SendDlgItemMessage(hDlg, IDC_BUTTON7, BM_SETIMAGE, (WPARAM)IMAGE_BITMAP, (LPARAM)LoadBitmap(hInst, MAKEINTRESOURCE(IDB_TRIANGLEBMP)));
+        SendDlgItemMessage(hDlg, IDC_BUTTON8, BM_SETIMAGE, (WPARAM)IMAGE_BITMAP, (LPARAM)LoadBitmap(hInst, MAKEINTRESOURCE(IDB_LINEBMP)));
+        SendDlgItemMessage(hDlg, IDC_BUTTON9, BM_SETIMAGE, (WPARAM)IMAGE_BITMAP, (LPARAM)LoadBitmap(hInst, MAKEINTRESOURCE(IDB_PENCILBMP)));
+        SendDlgItemMessage(hDlg, IDC_BUTTON10, BM_SETIMAGE, (WPARAM)IMAGE_BITMAP, (LPARAM)LoadBitmap(hInst, MAKEINTRESOURCE(IDB_BUCKETBMP)));
+        SendDlgItemMessage(hDlg, IDC_BUTTON11, BM_SETIMAGE, (WPARAM)IMAGE_BITMAP, (LPARAM)LoadBitmap(hInst, MAKEINTRESOURCE(IDB_DROPPERBMP)));
+        SendDlgItemMessage(hDlg, IDC_BUTTON12, BM_SETIMAGE, (WPARAM)IMAGE_BITMAP, (LPARAM)LoadBitmap(hInst, MAKEINTRESOURCE(IDB_ERASERBMP)));
+        SendDlgItemMessage(hDlg, IDC_BUTTON4, BM_SETIMAGE, (WPARAM)IMAGE_BITMAP, (LPARAM)LoadBitmap(hInst, MAKEINTRESOURCE(IDB_UNDOICON)));
+        SendDlgItemMessage(hDlg, IDC_BUTTON3, BM_SETIMAGE, (WPARAM)IMAGE_BITMAP, (LPARAM)LoadBitmap(hInst, MAKEINTRESOURCE(IDB_REDOICON)));
         return (INT_PTR)TRUE;
-            case WM_COMMAND:
+    case WM_COMMAND:
             if (LOWORD(wParam) != IDC_BUTTON4 && LOWORD(wParam) != IDC_BUTTON3) {
                 if (prevscreenindex < 99) {
-                    for (int i = 0; i < 1280; i++)
-                        for (int i2 = 0; i2 < 786; i2++)
-                            prevscreens[prevscreenindex][i + 1280 * i2] = vscrmemp[i + 1280 * i2];
+                    for (int i = 0; i < winsizew; i++)
+                        for (int i2 = 0; i2 < winsizeh; i2++)
+                            prevscreens[prevscreenindex][i + winsizew * i2] = vscrmemp[i + winsizew * i2];
                     prevscreenindex += 1;
                     maxprevscreen += 1;
                 }
             }
             switch (LOWORD(wParam)) {
+                case IDC_BUTTON1:
+                    objectStates[0] += 1;
+                    if (objectStates[0] % 2 == 0)
+                        objectType = RECTANGLE;
+                    else
+                        objectType = NONE;
+                    return (INT_PTR)TRUE;
+                case IDC_BUTTON6:
+                    objectStates[1] += 1;
+                    if (objectStates[1] % 2 == 0)
+                        objectType = CIRCLE;
+                    else
+                        objectType = NONE;
+                    return (INT_PTR)TRUE;
+                case IDC_BUTTON7:
+                    objectStates[2] += 1;
+                    if (objectStates[2] % 2 == 0)
+                        objectType = TRIANGLE;
+                    else
+                        objectType = NONE;
+                    return (INT_PTR)TRUE;
+                case IDC_BUTTON8:
+                    objectStates[3] += 1;
+                    if (objectStates[3] % 2 == 0)
+                        objectType = LINE;
+                    else
+                        objectType = NONE;
+                    return (INT_PTR)TRUE;
+                case IDC_BUTTON9:
+                    CheckMenuItem(GetMenu(hWnd), ID_OBJECTS_LINE, MF_UNCHECKED);
+                    CheckMenuItem(GetMenu(hWnd), ID_OBJECTS_TRIANGLE, MF_UNCHECKED);
+                    CheckMenuItem(GetMenu(hWnd), ID_OBJECTS_CIRCLE, MF_UNCHECKED);
+                    CheckMenuItem(GetMenu(hWnd), ID_OBJECTS_RECTANGLE, MF_UNCHECKED);
+                    pencilState += 1;
+                    if (pencilState % 2 == 0) {
+                        shapedrawstate = 0;
+                        objectType = NONE;
+                    }
+                    dropperState = 1;
+                    eraserState = 1;
+                    bucketState = 1;
+                    return (INT_PTR)TRUE;
+                case IDC_BUTTON10:
+                    CheckMenuItem(GetMenu(hWnd), ID_OBJECTS_LINE, MF_UNCHECKED);
+                    CheckMenuItem(GetMenu(hWnd), ID_OBJECTS_TRIANGLE, MF_UNCHECKED);
+                    CheckMenuItem(GetMenu(hWnd), ID_OBJECTS_CIRCLE, MF_UNCHECKED);
+                    CheckMenuItem(GetMenu(hWnd), ID_OBJECTS_RECTANGLE, MF_UNCHECKED);
+                    bucketState += 1;
+                    if (bucketState % 2 == 0) {
+                        shapedrawstate = 0;
+                        objectType = NONE;
+                    }
+                    dropperState = 1;
+                    pencilState = 1;
+                    eraserState = 1;
+                    return (INT_PTR)TRUE;
+                case IDC_BUTTON11:
+                    CheckMenuItem(GetMenu(hWnd), ID_OBJECTS_LINE, MF_UNCHECKED);
+                    CheckMenuItem(GetMenu(hWnd), ID_OBJECTS_TRIANGLE, MF_UNCHECKED);
+                    CheckMenuItem(GetMenu(hWnd), ID_OBJECTS_CIRCLE, MF_UNCHECKED);
+                    CheckMenuItem(GetMenu(hWnd), ID_OBJECTS_RECTANGLE, MF_UNCHECKED);
+                    dropperState += 1;
+                    if (dropperState % 2 == 0) {
+                        shapedrawstate = 0;
+                        objectType = NONE;
+                    }
+                    bucketState = 1;
+                    pencilState = 1;
+                    eraserState = 1;
+                    return (INT_PTR)TRUE;
+                case IDC_BUTTON12:
+                    CheckMenuItem(GetMenu(hWnd), ID_OBJECTS_LINE, MF_UNCHECKED);
+                    CheckMenuItem(GetMenu(hWnd), ID_OBJECTS_TRIANGLE, MF_UNCHECKED);
+                    CheckMenuItem(GetMenu(hWnd), ID_OBJECTS_CIRCLE, MF_UNCHECKED);
+                    CheckMenuItem(GetMenu(hWnd), ID_OBJECTS_RECTANGLE, MF_UNCHECKED);
+                    eraserState += 1;
+                    if (eraserState % 2 == 0) {
+                        shapedrawstate = 0;
+                        objectType = NONE;
+                    }
+                    dropperState = 1;
+                    pencilState = 1;
+                    bucketState = 1; 
+                    return (INT_PTR)TRUE;
                 case IDOK:
                     EndDialog(hDlg, LOWORD(wParam));
                     return (INT_PTR)TRUE;
                 case IDCANCEL:
                     EndDialog(hDlg, LOWORD(wParam));
                     return (INT_PTR)TRUE;
-                case IDC_BUTTON1:
-                    CreateDialog(hInst, MAKEINTRESOURCE(IDD_DIALOGBAR), hWnd, Controls);
-                    return (INT_PTR)TRUE;
-                case IDC_BUTTON2:
-                    CreateDialog(hInst, MAKEINTRESOURCE(IDD_DIALOG5), hWnd, HatchMenu);
-                    return (INT_PTR)TRUE;
                 case IDC_BUTTON4:
-                    if (prevscreenindex >= 1) {
+                    if (prevscreenindex > 0) {
                         prevscreenindex -= 1;
-                        for (int i = 0; i < 1280; i++)
-                            for (int i2 = 0; i2 < 786; i2++)
-                                vscrmemp[i + 1280 * i2] = prevscreens[prevscreenindex][i + 1280 * i2];
+                        for (int i = 0; i < winsizew; i++)
+                            for (int i2 = 0; i2 < winsizeh; i2++)
+                                vscrmemp[i + winsizew * i2] = prevscreens[prevscreenindex][i + winsizew * i2];
                         pushvscr();
-                        EndDialog(toolbarHandle, NULL);
-                        CreateDialog(hInst, MAKEINTRESOURCE(IDD_DIALOG3), hWnd, MainToolbar);
                     }
-                    return (INT_PTR)TRUE;
-                case IDC_BUTTON5:
-                    BlueFilter();
-                    pushvscr();
-                    EndDialog(toolbarHandle, NULL);
-                    CreateDialog(hInst, MAKEINTRESOURCE(IDD_DIALOG3), hWnd, MainToolbar);
-                    return (INT_PTR)TRUE;
-                case IDC_BUTTON6:
-                    YellowFilter();
-                    pushvscr();
-                    EndDialog(toolbarHandle, NULL);
-                    CreateDialog(hInst, MAKEINTRESOURCE(IDD_DIALOG3), hWnd, MainToolbar);
-                    return (INT_PTR)TRUE;
-                case IDC_BUTTON7:
-                    RedFilter();
-                    pushvscr();
-                    EndDialog(toolbarHandle, NULL);
-                    CreateDialog(hInst, MAKEINTRESOURCE(IDD_DIALOG3), hWnd, MainToolbar);
                     return (INT_PTR)TRUE;
                 case IDC_BUTTON3:
                     if (prevscreenindex < maxprevscreen-1) {
                         prevscreenindex += 1;
-                        for (int i = 0; i < 1280; i++)
-                            for (int i2 = 0; i2 < 786; i2++)
-                                vscrmemp[i + 1280 * i2] = prevscreens[prevscreenindex][i + 1280 * i2];
+                        for (int i = 0; i < winsizew; i++)
+                            for (int i2 = 0; i2 < winsizeh; i2++)
+                                vscrmemp[i + winsizew * i2] = prevscreens[prevscreenindex][i + winsizew * i2];
                         pushvscr();
-                        EndDialog(toolbarHandle, NULL);
-                        CreateDialog(hInst, MAKEINTRESOURCE(IDD_DIALOG3), hWnd, MainToolbar);
                     }
                     return (INT_PTR)TRUE;
             }
@@ -1111,81 +1228,46 @@ INT_PTR CALLBACK MainToolbar(HWND hDlg, UINT message, WPARAM wParam, LPARAM lPar
     return (INT_PTR)FALSE;
 
 }
-INT_PTR CALLBACK HatchMenu(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam) {
-    UNREFERENCED_PARAMETER(lParam);
-    switch (message) {
-    case WM_INITDIALOG:
-        return (INT_PTR)TRUE;
-    case WM_COMMAND:
-        switch (LOWORD(wParam)) {
-            case IDOK:
-                EndDialog(hDlg, NULL);
-                return(INT_PTR)TRUE;
-            case IDCANCEL:
-                EndDialog(hDlg, NULL);
-                return(INT_PTR)TRUE;
-            case IDC_BUTTON1:
-                brushHatch = HS_FDIAGONAL;
-                brushState = BS_HATCHED;
-                if (thickness2 < 10) thickness2 = 10;
-                setPenAndBrush(penColor);
-                return(INT_PTR)TRUE;
-            case IDC_BUTTON2:
-                brushHatch = HS_CROSS;
-                brushState = BS_HATCHED;
-                if (thickness2 < 10) thickness2 = 10;
-                setPenAndBrush(penColor);
-                return(INT_PTR)TRUE;
-            case IDC_BUTTON5:
-                brushHatch = HS_DIAGCROSS;
-                brushState = BS_HATCHED;
-                if (thickness2 < 10) thickness2 = 10;
-                setPenAndBrush(penColor);
-                return(INT_PTR)TRUE;
-            case IDC_BUTTON6:
-                brushHatch = HS_BDIAGONAL;
-                brushState = BS_HATCHED;
-                if (thickness2 < 10) thickness2 = 10;
-                setPenAndBrush(penColor);
-                return(INT_PTR)TRUE;
-            case IDC_BUTTON7:
-                brushHatch = HS_HORIZONTAL;
-                brushState = BS_HATCHED;
-                if (thickness2 < 10) thickness2 = 10;
-                setPenAndBrush(penColor);
-                return(INT_PTR)TRUE;
-            case IDC_BUTTON8:
-                brushHatch = HS_VERTICAL;
-                brushState = BS_HATCHED;
-                if (thickness2 < 10) thickness2 = 10;
-                setPenAndBrush(penColor);
-                return(INT_PTR)TRUE;
-        }
-    }
-    return (INT_PTR)FALSE;
-}
+
 INT_PTR CALLBACK ColorPallette(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam) {
-    char colorVal[8];
-    char txt[16];
-    char rgb[3][8];
     RECT testColorRect;
-    testColorRect.left = 190;
-    testColorRect.right = 220;
-    testColorRect.top = 260;
-    testColorRect.bottom = 290;
-    sprintf(colorVal, "\0");
-    sprintf(txt, "\0");
+    char colorVal[8];
+    testColorRect.left = 219;
+    testColorRect.right = 249;
+    testColorRect.top = 340;
+    testColorRect.bottom = 370;
     UNREFERENCED_PARAMETER(lParam);
     switch (message) {
     case WM_INITDIALOG:
         return (INT_PTR)TRUE;
     case WM_MOUSEMOVE:
         if (wParam & MK_LBUTTON && (GET_Y_LPARAM(lParam)) < 210 && (GET_X_LPARAM(lParam)) > 10 && (GET_X_LPARAM(lParam)) < 215) {
-            printColorInfo(hDlg, testColorRect, lParam, colorVal, rgb);
+            penColor = GetPixel(GetDC(hDlg), GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam));
+            gradientColor2 = penColor;
+            gradientColor1 = RGB2BGR(penColor);
+            sprintf(colorVal, "\0");
+            sprintf(colorVal, "%d \0", penColor & 0xff);
+            SetDlgItemTextA(hDlg, IDC_EDIT1, colorVal);
+            sprintf(colorVal, "\0");
+            sprintf(colorVal, "%d \0", (penColor & 0x00ff00) >> 8);
+            SetDlgItemTextA(hDlg, IDC_EDIT3, colorVal);
+            sprintf(colorVal, "\0");
+            sprintf(colorVal, "%d \0", penColor >> 16);
+            SetDlgItemTextA(hDlg, IDC_EDIT5, colorVal);
+            FillRect(GetDC(hDlg), &testColorRect, CreateSolidBrush(penColor));
         }
         return (INT_PTR)TRUE;
     case WM_LBUTTONDOWN:
-        printColorInfo(hDlg, testColorRect, lParam, colorVal, rgb);
+        penColor = GetPixel(GetDC(hDlg), GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam));
+        sprintf(colorVal, "\0");
+        sprintf(colorVal, "%d \0", penColor & 0xff);
+        SetDlgItemTextA(hDlg, IDC_EDIT1, colorVal);
+        sprintf(colorVal, "\0");
+        sprintf(colorVal, "%d \0", (penColor & 0x00ff00) >> 8);
+        SetDlgItemTextA(hDlg, IDC_EDIT3, colorVal);
+        sprintf(colorVal, "\0");
+        sprintf(colorVal, "%d \0", penColor >> 16);
+        SetDlgItemTextA(hDlg, IDC_EDIT5, colorVal);
         return (INT_PTR)TRUE;
     case WM_COMMAND:
         switch (LOWORD(wParam)) {

@@ -1,0 +1,124 @@
+//{{NO_DEPENDENCIES}}
+// Microsoft Visual C++ generated include file.
+// Used by Visual ArtStudio.rc
+//
+#define IDC_MYICON                      2
+#define IDD_VISUALARTSTUDIO_DIALOG      102
+#define IDS_APP_TITLE                   103
+#define IDD_DIALOGBAR                   103
+#define ID_PENS_BOLD                    104
+#define IDM_EXIT                        105
+#define IDI_VISUALARTSTUDIO             107
+#define IDI_SMALL                       108
+#define IDC_VISUALARTSTUDIO             109
+#define IDB_THINPENBMP                  110
+#define IDB_BUCKETBMP                   111
+#define IDB_DROPPERBMP                  112
+#define IDB_PENCILBMP                   113
+#define IDB_ERASERBMP                   114
+#define IDB_RECTANGLEBMP                115
+#define IDB_TRIANGLEBMP                 116
+#define IDB_ELLIPSEBMP                  117
+#define IDB_LINEBMP                     118
+#define IDB_UNDOICON                    119
+#define IDB_REDOICON                    120
+#define IDR_MAINFRAME                   128
+#define IDB_BITMAP1                     129
+#define IDD_DIALOG1                     134
+#define IDD_DIALOG2                     135
+#define IDD_DIALOG3                     136
+#define IDD_DIALOG6                     142
+#define IDD_DIALOG7                     143
+#define IDD_DIALOG4                     144
+#define ID_TREEVIEW                     150
+#define IDC_EDIT1                       1016
+#define IDC_EDIT2                       1017
+#define IDC_BUTTON1                     1018
+#define IDC_EDIT4                       1019
+#define IDC_BUTTON6                     1019
+#define IDC_EDIT3                       1019
+#define IDC_BUTTON5                     1020
+#define IDC_EDIT5                       1020
+#define IDC_BUTTON7                     1021
+#define IDC_RADIO1                      1022
+#define IDC_BUTTON8                     1022
+#define IDC_CUSTOM1                     1023
+#define IDC_BUTTON9                     1023
+#define IDC_BUTTON10                    1024
+#define IDC_BUTTON11                    1025
+#define IDC_BUTTON12                    1026
+#define IDC_BUTTON13                    1027
+#define IDC_BUTTON3                     1029
+#define IDC_BUTTON4                     1030
+#define IDC_BUTTON14                    1033
+#define IDC_CHECK1                      1043
+#define IDC_CHECK2                      1044
+#define IDC_CHECK3                      1045
+#define IDC_COMBOBOXEX1                 1050
+#define IDC_SLIDER1                     1054
+#define IDC_SLIDER2                     1055
+#define IDC_SLIDER3                     1056
+#define IDC_SLIDER4                     1057
+#define IDC_STATIC1                     1058
+#define IDC_STATIC2                     1059
+#define IDC_STATIC3                     1060
+#define IDC_STATIC4                     1061
+#define IDC_STATIC5                     1062
+#define IDC_STATIC6                     1063
+#define IDC_BUTTON2                     1064
+#define IDC_BUTTON1500                  1064
+#define ID_OBJECTS_TRIANGLE             32771
+#define ID_OBJECTS_RECTANGLE            32772
+#define ID_OBJECTS_CIRCLE               32773
+#define ID_OBJECTS_LINE                 32774
+#define ID_HELP_REFERENCE               32775
+#define ID_COLORS_RED                   32776
+#define ID_COLORS_ORANGE                32777
+#define ID_COLORS_YELLOW                32778
+#define ID_COLORS_GREEN                 32779
+#define ID_COLORS_BLUE                  32780
+#define ID_COLORS_INDIGO                32781
+#define ID_COLORS_VIOLET                32782
+#define ID_COLORS_BLACK                 32783
+#define ID_COLORS_WHITE                 32784
+#define ID_COLORS_GRAY                  32785
+#define ID_PENS_NORMAL                  32786
+#define ID_PENS_THIN                    32787
+#define ID_FILE_UPLOADFILE              32788
+#define ID_FILE_UPLOADBMP               32789
+#define ID_FILE_EXIT                    32790
+#define ID_OBJECTS_DESELECTOBJECT       32795
+#define ID_PENTEXTURE_SOLIDPEN          32796
+#define ID_PENTEXTURE_DASHEDPEN         32797
+#define ID_PENTEXTURE_DOTPEN            32798
+#define ID_FILE_SAVEFILE                32799
+#define ID_ERASEROPTIONS_WHOLESCREEN    32800
+#define ID_ERASEROPTIONS_BOLDERASER     32801
+#define ID_ERASEROPTIONS_FINEERASER     32802
+#define ID_ERASEROPTIONS_THINERASER     32803
+#define ID_COLORS_PALLETTE              32804
+#define ID_PENS_CUSTOMTHICKNESS         32805
+#define ID_ERASEROPTIONS_CUSTOMTHICKNESS 32806
+#define ID_PENTEXTURE_MORE              32807
+#define ID_Menu                         32808
+#define ID_MORE_MORETEXTURES            32809
+#define ID_OBJECTS_CREATECUSTOMOBJECT   32810
+#define ID_FILE_INSERTIMAGE             32811
+#define ID_OBJECTS_MOREOBJECTS          32812
+#define ID_FILTERS_RED                  32813
+#define ID_FILTERS_YELLOW               32814
+#define ID_FILTERS_BLUE                 32815
+#define ID_FILTERS_BLACKWHITE           32816
+#define IDC_STATIC                      -1
+
+// Next default values for new objects
+// 
+#ifdef APSTUDIO_INVOKED
+#ifndef APSTUDIO_READONLY_SYMBOLS
+#define _APS_NO_MFC                     1
+#define _APS_NEXT_RESOURCE_VALUE        146
+#define _APS_NEXT_COMMAND_VALUE         32817
+#define _APS_NEXT_CONTROL_VALUE         1066
+#define _APS_NEXT_SYMED_VALUE           110
+#endif
+#endif
