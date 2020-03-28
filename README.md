@@ -1,5 +1,5 @@
 # Visual-ArtStudio-v1.0
-Free painting and design app created to run on Windows PC (requires Windows 8/Windows 8.1 or lower, currently unavailable for Windows 10)
+Free painting and design app created to run on Windows PC
 # Details
 This is only the free version of the application, so although it doesn't have the full capabilities of ArtStudio Plus (coming soon), it does have many capabilities, such as:
 
