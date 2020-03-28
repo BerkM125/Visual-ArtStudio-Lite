@@ -1,4 +1,4 @@
-# Visual-ArtStudio-v1.0
+# Visual-ArtStudio-Lite
 Free painting and design app created to run on Windows PC
 # Details
 This is only the free version of the application, so although it doesn't have the full capabilities of ArtStudio Plus (coming soon), it does have many capabilities, such as:
