@@ -1,9 +1,14 @@
 #include <Windows.h>
 #include "Visual ArtStudio.h"
-extern unsigned long* vscrmemp;
-extern HDC mdc;
-void RedFilter(void);
-void BlackWhite(void)
+
+void ApplyCustomFilter(int color) {
+	Graphics graphics(mdc);
+	SolidBrush solidBrush(Color(125, color & 0xff, (color & 0x00ff00) >> 8, color >> 16));
+	graphics.FillRectangle(&solidBrush, 0, 0, winsizew - 200, winsizeh);
+	pushvscr();
+}
+
+void WhiteBlack(void)
 {
 	int lm, r, g, b, a, x1, y1;
 	for (y1 = 0; y1 < HEIGHT; y1++)
@@ -17,14 +22,21 @@ void BlackWhite(void)
 			vscrmemp[y1 * WIDTH + x1] = lm + (lm << 8) + (lm << 16);
 		}
 }
-void WhiteBlack(void)
-{
-	int lm, r, g, b, a, x1 = 0, y1 = 0;
-	a = vscrmemp[y1 * WIDTH + x1];
+
+int getLuminosity (int color) {
+	int lm, r, g, b, a;
+	a = color;
 	r = (a >> 16);
 	g = (a & 0x00ff00) >> 8;
 	b = a & 0xff;
 	lm = (r * 5 + g * 9 + b * 2) >> 4;
+	return(lm);
+}
+
+void BlackWhite(void) {
+	int lm, a, x1 = 0, y1 = 0;
+	a = vscrmemp[y1 * WIDTH + x1];
+	lm = getLuminosity(a);
 	for (y1 = 0; y1 < HEIGHT; y1++)
 		for (x1 = 0; x1 < WIDTH; x1++)
 		{
@@ -34,34 +46,12 @@ void WhiteBlack(void)
 		}
 }
 void RedFilter(void) {
-	int lm;
-	for(int x1 = 0; x1< WIDTH; x1++)
-		for (int y1 = 0; y1 < HEIGHT; y1++) {
-			lm = vscrmemp[y1 * WIDTH + x1] & 0xff0000;
-			vscrmemp[y1 * WIDTH + x1] = lm + (lm << 8) + (lm << 16);
-		}
+	ApplyCustomFilter(0x0000ff);
 }
 void BlueFilter(void) {
-	for (int x = 0; x < WIDTH; x++) {
-		for (int y = 0; y < HEIGHT; y++) {
-			vscrmemp[x + WIDTH * y] = (vscrmemp[x + WIDTH * y] & 0x00ff00) >> 8;
-		}
-	}
+	ApplyCustomFilter(0xff0000);
 }
 
 void YellowFilter(void) {
-	int lm;
-	for (int x1 = 0; x1 < WIDTH; x1++)
-		for (int y1 = 0; y1 < HEIGHT; y1++) {
-			lm = vscrmemp[y1 * WIDTH + x1] & 0x00ff00;
-			vscrmemp[y1 * WIDTH + x1] = lm + (lm << 8) + (lm << 16);
-		}
-}
-void ApplyCustomFilter(int color) {
-	int lm;
-	for (int x1 = 0; x1 < WIDTH; x1++)
-		for (int y1 = 0; y1 < HEIGHT; y1++) {
-			lm = vscrmemp[y1 * WIDTH + x1] & color;
-			vscrmemp[y1 * WIDTH + x1] = lm + (lm << 8) + (lm << 16);
-		}
+	ApplyCustomFilter(0x00ffff);
 }

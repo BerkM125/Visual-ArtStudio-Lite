@@ -24,12 +24,10 @@
 #define IDB_REDOICON                    120
 #define IDR_MAINFRAME                   128
 #define IDB_BITMAP1                     129
-#define IDD_DIALOG1                     134
 #define IDD_DIALOG2                     135
 #define IDD_DIALOG3                     136
 #define IDD_DIALOG6                     142
 #define IDD_DIALOG7                     143
-#define IDD_DIALOG4                     144
 #define ID_TREEVIEW                     150
 #define IDC_EDIT1                       1016
 #define IDC_EDIT2                       1017
@@ -40,6 +38,7 @@
 #define IDC_BUTTON5                     1020
 #define IDC_EDIT5                       1020
 #define IDC_BUTTON7                     1021
+#define IDC_EDIT6                       1021
 #define IDC_RADIO1                      1022
 #define IDC_BUTTON8                     1022
 #define IDC_CUSTOM1                     1023
@@ -67,6 +66,7 @@
 #define IDC_STATIC6                     1063
 #define IDC_BUTTON2                     1064
 #define IDC_BUTTON1500                  1064
+#define IDC_SLIDER5                     1064
 #define ID_OBJECTS_TRIANGLE             32771
 #define ID_OBJECTS_RECTANGLE            32772
 #define ID_OBJECTS_CIRCLE               32773
@@ -109,6 +109,7 @@
 #define ID_FILTERS_YELLOW               32814
 #define ID_FILTERS_BLUE                 32815
 #define ID_FILTERS_BLACKWHITE           32816
+#define ID_FILTERS_CURRENTCOLORFILTER   32817
 #define IDC_STATIC                      -1
 
 // Next default values for new objects
@@ -117,8 +118,8 @@
 #ifndef APSTUDIO_READONLY_SYMBOLS
 #define _APS_NO_MFC                     1
 #define _APS_NEXT_RESOURCE_VALUE        146
-#define _APS_NEXT_COMMAND_VALUE         32817
-#define _APS_NEXT_CONTROL_VALUE         1066
+#define _APS_NEXT_COMMAND_VALUE         32818
+#define _APS_NEXT_CONTROL_VALUE         1067
 #define _APS_NEXT_SYMED_VALUE           110
 #endif
 #endif

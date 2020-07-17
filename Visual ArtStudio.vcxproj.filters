@@ -1,0 +1,220 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <Filter Include="Source Files">
+      <UniqueIdentifier>{4FC737F1-C7A5-4376-A066-2A32D752A2FF}</UniqueIdentifier>
+      <Extensions>cpp;c;cc;cxx;def;odl;idl;hpj;bat;asm;asmx</Extensions>
+    </Filter>
+    <Filter Include="Header Files">
+      <UniqueIdentifier>{93995380-89BD-4b04-88EB-625FBE52EBFB}</UniqueIdentifier>
+      <Extensions>h;hh;hpp;hxx;hm;inl;inc;ipp;xsd</Extensions>
+    </Filter>
+    <Filter Include="Resource Files">
+      <UniqueIdentifier>{67DA6AB6-F800-4c08-8B7A-83BB121AAD01}</UniqueIdentifier>
+      <Extensions>rc;ico;cur;bmp;dlg;rc2;rct;bin;rgs;gif;jpg;jpeg;jpe;resx;tiff;tif;png;wav;mfcribbon-ms</Extensions>
+    </Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="framework.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="targetver.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Resource.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Visual ArtStudio.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="resource1.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="UserEventHandler.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="FilterEffects.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="Tools.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="VisualArtStudio.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="Global.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ResourceCompile Include="Visual ArtStudio.rc">
+      <Filter>Resource Files</Filter>
+    </ResourceCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <Image Include="bitmap1.bmp">
+      <Filter>Resource Files</Filter>
+    </Image>
+    <Image Include="CrossStitchPen.bmp">
+      <Filter>Resource Files</Filter>
+    </Image>
+    <Image Include="DoubleCrossPen.bmp">
+      <Filter>Resource Files</Filter>
+    </Image>
+    <Image Include="StripedPen.bmp">
+      <Filter>Resource Files</Filter>
+    </Image>
+    <Image Include="PallettePNG.bmp">
+      <Filter>Resource Files</Filter>
+    </Image>
+    <Image Include="PencilPNG.bmp">
+      <Filter>Resource Files</Filter>
+    </Image>
+    <Image Include="EraserPNG.bmp">
+      <Filter>Resource Files</Filter>
+    </Image>
+    <Image Include="DiamondImg.bmp">
+      <Filter>Resource Files</Filter>
+    </Image>
+    <Image Include="TriangleImg.bmp">
+      <Filter>Resource Files</Filter>
+    </Image>
+    <Image Include="PentagonImg.bmp">
+      <Filter>Resource Files</Filter>
+    </Image>
+    <Image Include="ArcImg.bmp">
+      <Filter>Resource Files</Filter>
+    </Image>
+    <Image Include="RoundRectImg.bmp">
+      <Filter>Resource Files</Filter>
+    </Image>
+    <Image Include="HexagonImg.bmp">
+      <Filter>Resource Files</Filter>
+    </Image>
+    <Image Include="RectangleBMP.bmp">
+      <Filter>Resource Files</Filter>
+    </Image>
+    <Image Include="CircleBMP.bmp">
+      <Filter>Resource Files</Filter>
+    </Image>
+    <Image Include="LineBMP.bmp">
+      <Filter>Resource Files</Filter>
+    </Image>
+    <Image Include="RightTriangleBMP.bmp">
+      <Filter>Resource Files</Filter>
+    </Image>
+    <Image Include="BucketBMP.bmp">
+      <Filter>Resource Files</Filter>
+    </Image>
+    <Image Include="PencilBMP.bmp">
+      <Filter>Resource Files</Filter>
+    </Image>
+    <Image Include="EraserBMP.bmp">
+      <Filter>Resource Files</Filter>
+    </Image>
+    <Image Include="BoldPenBMP.bmp">
+      <Filter>Resource Files</Filter>
+    </Image>
+    <Image Include="DashPenBMP.bmp">
+      <Filter>Resource Files</Filter>
+    </Image>
+    <Image Include="DotPenBMP.bmp">
+      <Filter>Resource Files</Filter>
+    </Image>
+    <Image Include="NormalPenBMP.bmp">
+      <Filter>Resource Files</Filter>
+    </Image>
+    <Image Include="ThinPenBMP.bmp">
+      <Filter>Resource Files</Filter>
+    </Image>
+    <Image Include="HatchImg.bmp">
+      <Filter>Resource Files</Filter>
+    </Image>
+    <Image Include="DropperBMP.PNG">
+      <Filter>Resource Files</Filter>
+    </Image>
+    <Image Include="DropperBMP.bmp">
+      <Filter>Resource Files</Filter>
+    </Image>
+    <Image Include="ColorToolbarImg.bmp">
+      <Filter>Resource Files</Filter>
+    </Image>
+    <Image Include="icon1.ico">
+      <Filter>Resource Files</Filter>
+    </Image>
+    <Image Include="ArtStudioIconPNG.png">
+      <Filter>Resource Files</Filter>
+    </Image>
+    <Image Include="CalligraphyPen.bmp">
+      <Filter>Resource Files</Filter>
+    </Image>
+    <Image Include="Eraser.bmp">
+      <Filter>Resource Files</Filter>
+    </Image>
+    <Image Include="MarkerIcon.bmp">
+      <Filter>Resource Files</Filter>
+    </Image>
+    <Image Include="GradientPen.bmp">
+      <Filter>Resource Files</Filter>
+    </Image>
+    <Image Include="PencilTool.bmp">
+      <Filter>Resource Files</Filter>
+    </Image>
+    <Image Include="BrushTool.bmp">
+      <Filter>Resource Files</Filter>
+    </Image>
+    <Image Include="BrushTexture1.bmp">
+      <Filter>Resource Files</Filter>
+    </Image>
+    <Image Include="SprayTexture1.bmp">
+      <Filter>Resource Files</Filter>
+    </Image>
+    <Image Include="MediBangBrush.bmp">
+      <Filter>Resource Files</Filter>
+    </Image>
+    <Image Include="ArtStudio Modal.bmp">
+      <Filter>Resource Files</Filter>
+    </Image>
+    <Image Include="bitmap2.bmp">
+      <Filter>Resource Files</Filter>
+    </Image>
+    <Image Include="TexturePen.bmp">
+      <Filter>Resource Files</Filter>
+    </Image>
+    <Image Include="EraserBMP.PNG">
+      <Filter>Resource Files</Filter>
+    </Image>
+    <Image Include="UtensilMenuPallette.bmp">
+      <Filter>Resource Files</Filter>
+    </Image>
+    <Image Include="HighlighterImg.bmp">
+      <Filter>Resource Files</Filter>
+    </Image>
+    <Image Include="ThinBrush.bmp">
+      <Filter>Resource Files</Filter>
+    </Image>
+    <Image Include="RedoIcon.bmp">
+      <Filter>Resource Files</Filter>
+    </Image>
+    <Image Include="UndoIcon.bmp">
+      <Filter>Resource Files</Filter>
+    </Image>
+    <Image Include="Release\BrushTexture2.bmp">
+      <Filter>Resource Files</Filter>
+    </Image>
+    <Image Include="Release\Visual ArtStudio.ico">
+      <Filter>Resource Files</Filter>
+    </Image>
+    <Image Include="Release\small.ico">
+      <Filter>Resource Files</Filter>
+    </Image>
+    <Image Include="Visual ArtStudio.ico">
+      <Filter>Resource Files</Filter>
+    </Image>
+    <Image Include="small.ico">
+      <Filter>Resource Files</Filter>
+    </Image>
+  </ItemGroup>
+</Project>

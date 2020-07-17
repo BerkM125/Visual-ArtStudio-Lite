@@ -5,43 +5,12 @@
 #include "Visual ArtStudio.h"
 #include "resource.h"
 #include <gdiplus.h>
+#include <queue>
+#define RGB2BGR(a_ulColor) (a_ulColor & 0xFF000000) | ((a_ulColor & 0xFF0000) >> 16) | (a_ulColor & 0x00FF00) | ((a_ulColor & 0x0000FF) << 16)
 using namespace Gdiplus;
+using namespace std;
 #pragma comment (lib,"Gdiplus.lib")
 #define FILESTRINGBUFFER 1024
-extern LineCap lineCap;
-extern HDC mdc;
-extern HDC hdc;
-extern int utensilType;
-extern int winsizew;
-extern int winsizeh;
-extern HBRUSH penBrush;
-extern HPEN penDCPen;
-extern int penType;
-extern int objectType;
-extern int penColor;
-extern void setPenAndBrush(int color);
-extern int thickness;
-extern int thickness2;
-extern int eraserThickness;
-extern int brushHatch;
-extern int pencilState;
-extern int eraserState;
-extern int bucketState;
-extern int imageDrawState;
-extern int dropperState;
-extern wchar_t imageFileField[FILESTRINGBUFFER];
-extern unsigned long* vscrmemp;
-extern void UploadGlobalImage(HDC hdc, int x, int y);
-extern void pushvscr(void);
-int shapedrawstate = 0;
-int drawstate = 0;
-int lbuttonstate = 0;
-int eraserState2 = 0;
-int gradientPenState = 0;
-int texturePenState = 0;
-int objectIndex = 0;
-int selectState = 1;
-int selectTransformState = 0;
 wchar_t currentBrushTexture[64];
 Color gradientColor1(255, 255, 0, 0);
 Color gradientColor2(255, 0, 0, 255);
@@ -50,7 +19,8 @@ HPEN dashPen;
 HBRUSH clearBrush;
 RECT focusRect;
 LPPOINT mainpoint;
-unsigned long tmpregion[1280*786];
+unsigned long tmpregion[WIDTH*HEIGHT];
+
 void initClearPen(void) {
 	clearPen = CreatePen(thickness, 6, (COLORREF)WHITE);
 	clearBrush = CreateHatchBrush(brushHatch, (COLORREF)WHITE);
@@ -86,12 +56,12 @@ class triangleStruct {
 };
 void triangleStruct::drawTriangle(void) {
 	Point vertices[3];
-	Graphics graphics(hdc);
+	Graphics graphics(mdc);
 	Image textureImg(currentBrushTexture);
-	SolidBrush solidBrush(Color(255, penColor & 0xff, (penColor & 0x00ff00) >> 8, penColor >> 16));
+	SolidBrush solidBrush(Color(alpha, penColor & 0xff, (penColor & 0x00ff00) >> 8, penColor >> 16));
 	Pen solidPen(&solidBrush);
 	solidPen.SetLineJoin((LineJoin)lineCap);
-	solidPen.SetWidth(thickness2);
+	solidPen.SetWidth((REAL)thickness2);
 	graphics.SetSmoothingMode(SmoothingModeAntiAlias);
 	vertices[0].X = vertex1.x;
 	vertices[0].Y = vertex1.y;
@@ -130,25 +100,25 @@ void triangleStruct::drawTriangle(void) {
 void ellipseStruct::drawEllipse(void) {
 	Graphics graphics(hdc);
 	Image textureImg(currentBrushTexture);
-	SolidBrush solidBrush(Color(255, penColor & 0xff, (penColor & 0x00ff00) >> 8, penColor >> 16));
+	SolidBrush solidBrush(Color(alpha, penColor & 0xff, (penColor & 0x00ff00) >> 8, penColor >> 16));
 	Pen solidPen(&solidBrush);
-	solidPen.SetWidth(thickness2);
+	solidPen.SetWidth((REAL)thickness2);
 	solidPen.SetLineJoin((LineJoin)lineCap);
 	graphics.SetSmoothingMode(SmoothingModeAntiAlias);
 	if (texturePenState == 1) {
 		TextureBrush tbrush(&textureImg, WrapModeTile);
 		Pen texturePen(&tbrush);
-		texturePen.SetWidth(thickness2);
+		texturePen.SetWidth((REAL)thickness2);
 		graphics.DrawEllipse(&texturePen, left, top, (right - left), (bottom - top));
 	}
 	else if (gradientPenState == 1) {
 		LinearGradientBrush linGrBrush(
 			Point(0, 10),
-			Point(200, 10),
+			Point(400, 10),
 			gradientColor1,
 			gradientColor2);
 		Pen linGrPen(&linGrBrush);
-		linGrPen.SetWidth(thickness2);
+		linGrPen.SetWidth((REAL)thickness2);
 		graphics.DrawEllipse(&linGrPen, left, top, (right - left), (bottom - top));
 	}
 	else
@@ -158,11 +128,11 @@ void ellipseStruct::drawEllipse(void) {
 void lineStruct::drawLine(void) {
 	Graphics graphics(hdc);
 	Image textureImg(currentBrushTexture);
-	SolidBrush solidBrush(Color(255, penColor & 0xff, (penColor & 0x00ff00) >> 8, penColor >> 16));
+	SolidBrush solidBrush(Color(alpha, penColor & 0xff, (penColor & 0x00ff00) >> 8, penColor >> 16));
 	Pen solidPen(&solidBrush);
 	solidPen.SetStartCap(lineCap);
 	solidPen.SetEndCap(lineCap);
-	solidPen.SetWidth(thickness2);
+	solidPen.SetWidth((REAL)thickness2);
 	graphics.SetSmoothingMode(SmoothingModeAntiAlias);
 	Point point1(vertex1.x, vertex1.y);
 	Point point2(vertex2.x, vertex2.y);
@@ -171,7 +141,7 @@ void lineStruct::drawLine(void) {
 		Pen texturePen(&tbrush);
 		texturePen.SetStartCap(solidPen.GetStartCap());
 		texturePen.SetEndCap(solidPen.GetEndCap());
-		texturePen.SetWidth(thickness2);
+		texturePen.SetWidth((REAL)thickness2);
 		graphics.DrawLine(&texturePen, point1, point2);
 	}
 	else if (gradientPenState == 1) {
@@ -183,7 +153,7 @@ void lineStruct::drawLine(void) {
 		Pen linGrPen(&linGrBrush);
 		linGrPen.SetStartCap(solidPen.GetStartCap());
 		linGrPen.SetEndCap(solidPen.GetEndCap());
-		linGrPen.SetWidth(thickness2);
+		linGrPen.SetWidth((REAL)thickness2);
 		graphics.DrawLine(&linGrPen, point1, point2);
 	}
 	else {
@@ -191,6 +161,7 @@ void lineStruct::drawLine(void) {
 	}
 	return;
 }
+
 RECT prevregion;
 RECT region;
 ellipseStruct ellipse;
@@ -199,10 +170,63 @@ triangleStruct prevtriangle;
 lineStruct line;
 lineStruct prevline;
 
+int fillCount = 0;
+void floodfill(int x, int y, int tcolor, int color) {
+	if (vscrmemp[x + winsizew * y] != tcolor || vscrmemp[x + winsizew * y] == color)
+		return;
+	if (x <= 1 || y <= 1 || x >= winsizew || y >= winsizeh)
+		return;
+	vscrmemp[x + winsizew * y] = RGB2BGR(color);
+	if (fillCount % 50 == 0)
+		pushvscr();
+	fillCount++;
+	floodfill(x + 1, y, tcolor, color);  
+	floodfill(x - 1, y, tcolor, color);  
+	floodfill(x, y + 1, tcolor, color);  
+	floodfill(x, y - 1, tcolor, color);  
+	return;
+}
+
+void floodfill2(int x, int y, int tcolor, int color) {
+	queue<pair<int, int>> fillQueue;
+	int lum, col;
+	color = RGB2BGR(color);
+	lum = getLuminosity(color);
+	fillQueue.push({ x,y });
+	while (!fillQueue.empty()) {
+		int tx, ty;
+		pair<int, int> node = fillQueue.front();
+		fillQueue.pop();
+		tx = node.first;
+		ty = node.second;
+		lum = getLuminosity(vscrmemp[(tx - 1) + winsizew * ty]);
+		col = vscrmemp[(tx - 1) + winsizew * ty];
+		fillCount++;
+		if (tx >= 1 && tx <= winsizew - 1 && ty >= 1 && ty <= winsizeh - 1) {
+			if (vscrmemp[(tx - 1) + winsizew * ty] == tcolor) {
+				vscrmemp[(tx - 1) + winsizew * ty] = color;
+				fillQueue.push({ tx - 1, ty });
+			}
+			if (vscrmemp[(tx + 1) + winsizew * ty] == tcolor) {
+				vscrmemp[(tx + 1) + winsizew * ty] = color;
+				fillQueue.push({ tx + 1, ty });
+			}
+			if (vscrmemp[tx + winsizew * (ty + 1)] == tcolor) {
+				vscrmemp[tx + winsizew * (ty + 1)] = color;
+				fillQueue.push({ tx, ty + 1 });
+			}
+			if (vscrmemp[tx + winsizew * (ty - 1)] == tcolor) {
+				vscrmemp[tx + winsizew * (ty - 1)] = color;
+				fillQueue.push({ tx, ty - 1 });
+			}
+		}
+	}
+}
+
 void drawRectGDI(RECT drawRect) {
 	Graphics graphics(mdc);
 	Image textureImg(currentBrushTexture);
-	SolidBrush solidBrush(Color(255, penColor & 0xff, (penColor & 0x00ff00) >> 8, penColor >> 16));
+	SolidBrush solidBrush(Color(alpha, penColor & 0xff, (penColor & 0x00ff00) >> 8, penColor >> 16));
 	Pen solidPen(&solidBrush);
 	Rect rectRgn;
 	int x2, y2;
@@ -238,7 +262,7 @@ void drawRectGDI(RECT drawRect) {
 	else if (gradientPenState == 1) {
 		LinearGradientBrush linGrBrush(
 			Point(0, 10),
-			Point(200, 10),
+			Point(400, 10),
 			gradientColor1,
 			gradientColor2);
 		Pen linGrPen(&linGrBrush);
@@ -268,7 +292,7 @@ void mylmousemove(int x, int y) {
 	Image textureImg(currentBrushTexture);
 	TextureBrush tbrush(&textureImg, WrapModeTile);
 	Pen texturePen(&tbrush);
-	SolidBrush solidBrush(Color(255, penColor & 0xff, (penColor & 0x00ff00) >> 8, penColor >> 16));
+	SolidBrush solidBrush(Color(alpha, penColor & 0xff, (penColor & 0x00ff00) >> 8, penColor >> 16));
 	Pen solidPen(&solidBrush);
 	solidPen.SetEndCap(lineCap);
 	solidPen.SetStartCap(lineCap);
@@ -523,7 +547,8 @@ void mylbutton(int x, int y, HDC hdc) {
 		return;
 	}
 	else if (bucketState % 2 == 0) {
-		ExtFloodFill(mdc, x, y, (COLORREF)penColor, FLOODFILLBORDER);
+		//ExtFloodFill(mdc, x, y, (COLORREF)penColor, FLOODFILLBORDER);
+		floodfill2(x, y, (vscrmemp[x + winsizew * y]), penColor);
 		pushvscr();
 		return;
 	}
